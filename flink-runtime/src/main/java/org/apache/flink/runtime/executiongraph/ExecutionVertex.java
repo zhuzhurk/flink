@@ -35,6 +35,8 @@ import org.apache.flink.runtime.deployment.InputGateDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.TaskDeploymentDescriptor;
 import org.apache.flink.runtime.execution.ExecutionState;
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverEdge;
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverVertex;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
 import org.apache.flink.runtime.jobgraph.DistributionPattern;
@@ -51,6 +53,7 @@ import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 import org.apache.flink.runtime.util.EvictingBoundedList;
 import org.apache.flink.types.Either;
+import org.apache.flink.util.AbstractID;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.SerializedValue;
@@ -72,6 +75,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.apache.flink.runtime.execution.ExecutionState.FINISHED;
@@ -80,7 +84,7 @@ import static org.apache.flink.runtime.execution.ExecutionState.FINISHED;
  * The ExecutionVertex is a parallel subtask of the execution. It may be executed once, or several times, each of
  * which time it spawns an {@link Execution}.
  */
-public class ExecutionVertex implements AccessExecutionVertex, Archiveable<ArchivedExecutionVertex> {
+public class ExecutionVertex implements AccessExecutionVertex, Archiveable<ArchivedExecutionVertex>, FailoverVertex {
 
 	private static final Logger LOG = ExecutionGraph.LOG;
 
@@ -932,5 +936,33 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 	@Override
 	public ArchivedExecutionVertex archive() {
 		return new ArchivedExecutionVertex(this);
+	}
+
+	@Override
+	public AbstractID getExecutionVertexID() {
+		// TODO: replace with actual ExecutionVertexID once it was added
+		return new AbstractID(getJobvertexId().getUpperPart(), getParallelSubtaskIndex());
+	}
+
+	@Override
+	public String getExecutionVertexName() {
+		return getTaskName();
+	}
+
+	@Override
+	public Collection<FailoverEdge> getInputEdges() {
+		return IntStream.range(0, getNumberOfInputs())
+			.mapToObj(this::getInputEdges)
+			.flatMap(Arrays::stream)
+			.collect(Collectors.toList());
+	}
+
+	@Override
+	public Collection<FailoverEdge> getOutputEdges() {
+		return resultPartitions.values().stream()
+			.map(IntermediateResultPartition::getConsumers)
+			.flatMap(Collection::stream)
+			.flatMap(Collection::stream)
+			.collect(Collectors.toList());
 	}
 }

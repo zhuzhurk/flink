@@ -47,6 +47,8 @@ import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.execution.SuppressRestartsException;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategy;
 import org.apache.flink.runtime.executiongraph.failover.RestartAllStrategy;
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverTopology;
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverVertex;
 import org.apache.flink.runtime.executiongraph.restart.ExecutionGraphRestartCallback;
 import org.apache.flink.runtime.executiongraph.restart.RestartCallback;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategy;
@@ -92,6 +94,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -155,7 +158,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * local failover (meaning there is a concurrent global failover), the failover strategy has to
  * yield before the global failover.
  */
-public class ExecutionGraph implements AccessExecutionGraph {
+public class ExecutionGraph implements AccessExecutionGraph, FailoverTopology {
 
 	/** In place updater for the execution graph's current state. Avoids having to use an
 	 * AtomicReference and thus makes the frequent read access a bit faster. */
@@ -1766,5 +1769,17 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		if (!(jobMasterMainThreadExecutor instanceof ComponentMainThreadExecutor.DummyComponentMainThreadExecutor)) {
 			jobMasterMainThreadExecutor.assertRunningInMainThread();
 		}
+	}
+
+	@Override
+	public Iterable<? extends FailoverVertex> getFailoverVertices() {
+		return getAllExecutionVertices();
+	}
+
+	@Override
+	public boolean containsIterations() {
+		return getAllVertices().values().stream()
+			.map(ExecutionJobVertex::getCoLocationGroup)
+			.anyMatch(Objects::nonNull);
 	}
 }

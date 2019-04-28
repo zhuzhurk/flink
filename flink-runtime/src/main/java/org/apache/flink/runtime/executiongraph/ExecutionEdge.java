@@ -18,7 +18,12 @@
 
 package org.apache.flink.runtime.executiongraph;
 
-public class ExecutionEdge {
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverEdge;
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverVertex;
+import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
+
+public class ExecutionEdge implements FailoverEdge {
 
 	private final IntermediateResultPartition source;
 
@@ -47,5 +52,25 @@ public class ExecutionEdge {
 	@Override
 	public String toString() {
 		return "ExecutionEdge [" + source + " <=> " + target + "]";
+	}
+
+	@Override
+	public IntermediateResultPartitionID getResultPartitionID() {
+		return source.getPartitionId();
+	}
+
+	@Override
+	public ResultPartitionType getResultPartitionType() {
+		return source.getResultType();
+	}
+
+	@Override
+	public FailoverVertex getSourceVertex() {
+		return source.getProducer();
+	}
+
+	@Override
+	public FailoverVertex getTargetVertex() {
+		return target;
 	}
 }
