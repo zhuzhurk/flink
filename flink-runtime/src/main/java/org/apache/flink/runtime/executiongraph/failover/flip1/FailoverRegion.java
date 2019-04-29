@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.executiongraph.failover.flip1;
 
 import org.apache.flink.util.AbstractID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
