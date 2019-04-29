@@ -946,7 +946,7 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 
 	@Override
 	public String getExecutionVertexName() {
-		return getTaskName();
+		return getTaskNameWithSubtaskIndex();
 	}
 
 	@Override
