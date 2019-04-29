@@ -19,8 +19,6 @@ package org.apache.flink.runtime.executiongraph.failover.flip1;
 
 import org.apache.flink.util.AbstractID;
 
-import java.util.Collection;
-
 /**
  * Represents an ExecutionVertex.
  */
@@ -42,12 +40,12 @@ public interface FailoverVertex {
 	 *
 	 * @return input edges of this vertex
 	 */
-	Collection<FailoverEdge> getInputEdges();
+	Iterable<? extends FailoverEdge> getInputEdges();
 
 	/**
 	 * Returns all output edges of this vertex.
 	 *
 	 * @return output edges of this vertex
 	 */
-	Collection<FailoverEdge> getOutputEdges();
+	Iterable<? extends FailoverEdge> getOutputEdges();
 }

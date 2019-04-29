@@ -35,7 +35,6 @@ import org.apache.flink.runtime.deployment.InputGateDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.ResultPartitionDeploymentDescriptor;
 import org.apache.flink.runtime.deployment.TaskDeploymentDescriptor;
 import org.apache.flink.runtime.execution.ExecutionState;
-import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverEdge;
 import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverVertex;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
@@ -75,7 +74,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.apache.flink.runtime.execution.ExecutionState.FINISHED;
@@ -950,19 +948,19 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 	}
 
 	@Override
-	public Collection<FailoverEdge> getInputEdges() {
-		return IntStream.range(0, getNumberOfInputs())
+	public Iterable<ExecutionEdge> getInputEdges() {
+		return () -> IntStream.range(0, getNumberOfInputs())
 			.mapToObj(this::getInputEdges)
 			.flatMap(Arrays::stream)
-			.collect(Collectors.toList());
+			.iterator();
 	}
 
 	@Override
-	public Collection<FailoverEdge> getOutputEdges() {
-		return resultPartitions.values().stream()
+	public Iterable<ExecutionEdge> getOutputEdges() {
+		return () -> resultPartitions.values().stream()
 			.map(IntermediateResultPartition::getConsumers)
 			.flatMap(Collection::stream)
 			.flatMap(Collection::stream)
-			.collect(Collectors.toList());
+			.iterator();
 	}
 }
