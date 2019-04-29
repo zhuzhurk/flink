@@ -48,7 +48,7 @@ public class FailoverRegion {
 	}
 
 	/**
-	 * get IDs of all execution vertex IDs in this region
+	 * get IDs of all execution vertex IDs in this region.
 	 */
 	public Set<AbstractID> getAllExecutionVertexIDs() {
 		return executionVertexIDs;

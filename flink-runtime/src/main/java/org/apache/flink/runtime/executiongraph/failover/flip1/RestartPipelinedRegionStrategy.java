@@ -47,7 +47,7 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 	/** The topology containing info about all the vertices and edges. */
 	private final FailoverTopology topology;
 
-	/** Maps execution vertex id to failover region */
+	/** Maps execution vertex id to failover region. */
 	private final Map<AbstractID, FailoverRegion> regions;
 
 	/**
