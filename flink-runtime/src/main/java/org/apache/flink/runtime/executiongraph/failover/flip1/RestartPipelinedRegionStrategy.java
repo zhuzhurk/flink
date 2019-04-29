@@ -71,7 +71,7 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 	private void buildFailoverRegions() {
 		// currently we let a job with co-location constraints fail as one region
 		// putting co-located vertices in the same region with each other can be a future improvement
-		if (topology.containsIterations()) {
+		if (topology.containsColocationConstraints()) {
 			buildOneRegionForAllVertices();
 			return;
 		}

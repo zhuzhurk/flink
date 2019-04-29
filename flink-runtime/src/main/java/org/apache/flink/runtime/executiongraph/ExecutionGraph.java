@@ -1777,7 +1777,7 @@ public class ExecutionGraph implements AccessExecutionGraph, FailoverTopology {
 	}
 
 	@Override
-	public boolean containsIterations() {
+	public boolean containsColocationConstraints() {
 		return getAllVertices().values().stream()
 			.map(ExecutionJobVertex::getCoLocationGroup)
 			.anyMatch(Objects::nonNull);

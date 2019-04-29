@@ -29,5 +29,5 @@ public interface FailoverTopology {
 	 */
 	Iterable<? extends FailoverVertex> getFailoverVertices();
 
-	boolean containsIterations();
+	boolean containsColocationConstraints();
 }
