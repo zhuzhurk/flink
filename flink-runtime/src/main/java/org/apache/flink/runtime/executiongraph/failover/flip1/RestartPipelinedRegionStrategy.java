@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -68,27 +67,42 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 	private final Map<IntermediateResultPartitionID, FailoverRegion> partitionProducer;
 
 	/** The checker helps to query result partition availability. */
-	private RegionFailoverResultPartitionAvailabilityChecker resultPartitionAvailabilityChecker;
+	private final RegionFailoverResultPartitionAvailabilityChecker resultPartitionAvailabilityChecker;
+
+	/**
+	 * Creates a new failover strategy to restart pipelined regions that works on the given topology.
+	 * The result partitions are always considered to be available if no data consumption error happens.
+	 *
+	 * @param topology containing info about all the vertices and edges
+	 */
+	@VisibleForTesting
+	public RestartPipelinedRegionStrategy(FailoverTopology topology) {
+		this(topology, resultPartitionID -> true);
+	}
 
 	/**
 	 * Creates a new failover strategy to restart pipelined regions that works on the given topology.
 	 *
 	 * @param topology containing info about all the vertices and edges
+	 * @param resultPartitionAvailabilityChecker helps to query result partition availability
 	 */
-	public RestartPipelinedRegionStrategy(FailoverTopology topology) {
+	public RestartPipelinedRegionStrategy(
+		FailoverTopology topology,
+		ResultPartitionAvailabilityChecker resultPartitionAvailabilityChecker) {
+
 		this.topology = checkNotNull(topology);
 		this.regions = new IdentityHashMap<>();
 		this.vertexToRegionMap = new HashMap<>();
 		this.regionInputs = new IdentityHashMap<>();
 		this.regionConsumers = new IdentityHashMap<>();
 		this.partitionProducer = new HashMap<>();
-		this.resultPartitionAvailabilityChecker = new RegionFailoverResultPartitionAvailabilityChecker();
+		this.resultPartitionAvailabilityChecker = new RegionFailoverResultPartitionAvailabilityChecker(
+			resultPartitionAvailabilityChecker);
 
 		// build regions based on the given topology
 		LOG.info("Start building failover regions.");
 		buildFailoverRegions();
 	}
-
 	// ------------------------------------------------------------------------
 	//  region building
 	// ------------------------------------------------------------------------
@@ -247,9 +261,10 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 		}
 
 		// calculate the tasks to restart based on the result of regions to restart
-		Set<FailoverRegion> regionsToRestart = getRegionsToRestart(failedRegion);
-		Set<ExecutionVertexID> tasksToRestart = regionsToRestart.stream().flatMap(
-			r -> r.getAllExecutionVertexIDs().stream()).collect(Collectors.toSet());
+		Set<ExecutionVertexID> tasksToRestart = new HashSet<>();
+		for (FailoverRegion region : getRegionsToRestart(failedRegion)) {
+			tasksToRestart.addAll(region.getAllExecutionVertexIDs());
+		}
 
 		// the previous failed partition will be recovered. remove its failed state from the checker
 		if (dataConsumptionException.isPresent()) {
@@ -325,19 +340,21 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 	 */
 	private static class RegionFailoverResultPartitionAvailabilityChecker implements ResultPartitionAvailabilityChecker {
 
-		/**
-		 * Maintains partitions which has caused {@link DataConsumptionException}.
-		 * This is a workaround before it is ready to query partition status from partition manager.
-		 */
+		/** Result partition state checker from the shuffle master. */
+		private final ResultPartitionAvailabilityChecker resultPartitionAvailabilityChecker;
+
+		/** Records partitions which has caused {@link DataConsumptionException}. */
 		private final HashSet<IntermediateResultPartitionID> failedPartitions;
 
-		public RegionFailoverResultPartitionAvailabilityChecker() {
+		public RegionFailoverResultPartitionAvailabilityChecker(ResultPartitionAvailabilityChecker checker) {
+			this.resultPartitionAvailabilityChecker = checkNotNull(checker);
 			this.failedPartitions = new HashSet<>();
 		}
 
 		@Override
 		public boolean isAvailable(IntermediateResultPartitionID resultPartitionID) {
-			return !failedPartitions.contains(resultPartitionID);
+			return !failedPartitions.contains(resultPartitionID) &&
+				resultPartitionAvailabilityChecker.isAvailable(resultPartitionID);
 		}
 
 		public void markResultPartitionFailed(IntermediateResultPartitionID resultPartitionID) {

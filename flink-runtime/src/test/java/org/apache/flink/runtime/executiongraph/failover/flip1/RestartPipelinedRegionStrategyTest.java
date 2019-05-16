@@ -22,6 +22,7 @@ import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import org.apache.flink.runtime.io.network.partition.DataConsumptionException;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
 import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 import org.apache.flink.util.TestLogger;
 
@@ -223,6 +224,154 @@ public class RestartPipelinedRegionStrategyTest extends TestLogger {
 	}
 
 	/**
+	 * Tests to verify region failover results regarding different input result partition availability combinations.
+	 * <pre>
+	 *     (v1) --rp1--\
+	 *                 (v3)
+	 *     (v2) --rp2--/
+	 *
+	 *             ^
+	 *             |
+	 *         (blocking)
+	 * </pre>
+	 * Each vertex is in an individual region.
+	 * rp1, rp2 are result partitions.
+	 */
+	@Test
+	public void testRegionFailoverForVariousResultPartitionAvailabilityCombinations() throws Exception {
+		TestFailoverTopology.Builder topologyBuilder = new TestFailoverTopology.Builder();
+
+		TestFailoverTopology.TestFailoverVertex v1 = topologyBuilder.newVertex();
+		TestFailoverTopology.TestFailoverVertex v2 = topologyBuilder.newVertex();
+		TestFailoverTopology.TestFailoverVertex v3 = topologyBuilder.newVertex();
+
+		topologyBuilder.connect(v1, v3, ResultPartitionType.BLOCKING);
+		topologyBuilder.connect(v2, v3, ResultPartitionType.BLOCKING);
+
+		FailoverTopology topology = topologyBuilder.build();
+
+		TestResultPartitionAvailabilityChecker availabilityChecker = new TestResultPartitionAvailabilityChecker();
+		RestartPipelinedRegionStrategy strategy = new RestartPipelinedRegionStrategy(topology, availabilityChecker);
+
+		IntermediateResultPartitionID rp1ID = v1.getOutputEdges().iterator().next().getResultPartitionID();
+		IntermediateResultPartitionID rp2ID = v2.getOutputEdges().iterator().next().getResultPartitionID();
+
+		HashSet<ExecutionVertexID> expectedResult = new HashSet<>();
+
+		// -------------------------------------------------
+		// Combination1: (rp1 == available, rp == available)
+		// -------------------------------------------------
+		availabilityChecker.failedPartitions.clear();
+
+		// when v1 fails, {v1,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v1.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v1.getExecutionVertexID(), new Exception("Test failure")));
+
+		// when v2 fails, {v2,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v2.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v2.getExecutionVertexID(), new Exception("Test failure")));
+
+		// when v3 fails, {v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v3.getExecutionVertexID(), new Exception("Test failure")));
+
+		// -------------------------------------------------
+		// Combination2: (rp1 == unavailable, rp == available)
+		// -------------------------------------------------
+		availabilityChecker.failedPartitions.clear();
+		availabilityChecker.markResultPartitionFailed(rp1ID);
+
+		// when v1 fails, {v1,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v1.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v1.getExecutionVertexID(), new Exception("Test failure")));
+
+		// when v2 fails, {v1,v2,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v1.getExecutionVertexID());
+		expectedResult.add(v2.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v2.getExecutionVertexID(), new Exception("Test failure")));
+
+		// when v3 fails, {v1,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v1.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v3.getExecutionVertexID(), new Exception("Test failure")));
+
+		// -------------------------------------------------
+		// Combination3: (rp1 == available, rp == unavailable)
+		// -------------------------------------------------
+		availabilityChecker.failedPartitions.clear();
+		availabilityChecker.markResultPartitionFailed(rp2ID);
+
+		// when v1 fails, {v1,v2,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v1.getExecutionVertexID());
+		expectedResult.add(v2.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v1.getExecutionVertexID(), new Exception("Test failure")));
+
+		// when v2 fails, {v2,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v2.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v2.getExecutionVertexID(), new Exception("Test failure")));
+
+		// when v3 fails, {v2,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v2.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v3.getExecutionVertexID(), new Exception("Test failure")));
+
+		// -------------------------------------------------
+		// Combination4: (rp1 == unavailable, rp == unavailable)
+		// -------------------------------------------------
+		availabilityChecker.failedPartitions.clear();
+		availabilityChecker.markResultPartitionFailed(rp1ID);
+		availabilityChecker.markResultPartitionFailed(rp2ID);
+
+		// when v1 fails, {v1,v2,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v1.getExecutionVertexID());
+		expectedResult.add(v2.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v1.getExecutionVertexID(), new Exception("Test failure")));
+
+		// when v2 fails, {v1,v2,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v1.getExecutionVertexID());
+		expectedResult.add(v2.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v2.getExecutionVertexID(), new Exception("Test failure")));
+
+		// when v3 fails, {v1,v2,v3} should be restarted
+		expectedResult.clear();
+		expectedResult.add(v1.getExecutionVertexID());
+		expectedResult.add(v2.getExecutionVertexID());
+		expectedResult.add(v3.getExecutionVertexID());
+		assertEquals(expectedResult,
+			strategy.getTasksNeedingRestart(v3.getExecutionVertexID(), new Exception("Test failure")));
+	}
+
+	/**
 	 * Tests region failover scenes for topology with multiple vertices.
 	 * <pre>
 	 *     (v1) ---> (v2) --|--> (v3) ---> (v4) --|--> (v5) ---> (v6)
@@ -278,5 +427,31 @@ public class RestartPipelinedRegionStrategyTest extends TestLogger {
 						v3.getInputEdges().iterator().next().getResultPartitionID(),
 						new ExecutionAttemptID()),
 					new Exception("Test failure"))));
+	}
+
+	// ------------------------------------------------------------------------
+	//  utilities
+	// ------------------------------------------------------------------------
+
+	private static class TestResultPartitionAvailabilityChecker implements ResultPartitionAvailabilityChecker {
+
+		private final HashSet<IntermediateResultPartitionID> failedPartitions;
+
+		public TestResultPartitionAvailabilityChecker() {
+			this.failedPartitions = new HashSet<>();
+		}
+
+		@Override
+		public boolean isAvailable(IntermediateResultPartitionID resultPartitionID) {
+			return !failedPartitions.contains(resultPartitionID);
+		}
+
+		public void markResultPartitionFailed(IntermediateResultPartitionID resultPartitionID) {
+			failedPartitions.add(resultPartitionID);
+		}
+
+		public void removeResultPartitionFromFailedState(IntermediateResultPartitionID resultPartitionID) {
+			failedPartitions.remove(resultPartitionID);
+		}
 	}
 }
