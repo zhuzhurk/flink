@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -63,7 +64,7 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 	/** Maps a failover region to its consumer regions. */
 	private final IdentityHashMap<FailoverRegion, Collection<FailoverRegion>> regionConsumers;
 
-	/** Maps result partition id to its producer failover region. Only for inter-region consumed partitions.*/
+	/** Maps result partition id to its producer failover region. Only for blocking partitions.*/
 	private final Map<IntermediateResultPartitionID, FailoverRegion> partitionProducer;
 
 	/** The checker helps to query result partition availability. */
@@ -118,27 +119,32 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 		// we use the map (list -> null) to imitate an IdentityHashSet (which does not exist)
 		// this helps to optimize the building performance as it uses reference equality
 		final IdentityHashMap<FailoverVertex, HashSet<FailoverVertex>> vertexToRegion = new IdentityHashMap<>();
+		final IdentityHashMap<HashSet<FailoverVertex>, Set<IntermediateResultPartitionID>> regionInputs = new IdentityHashMap<>();
+		final IdentityHashMap<HashSet<FailoverVertex>, Set<IntermediateResultPartitionID>> regionOutputs = new IdentityHashMap<>();
+		final IdentityHashMap<HashSet<FailoverVertex>, IdentityHashMap<Set<FailoverVertex>, Object>> regionConsumers = new IdentityHashMap<>();
+		final HashMap<IntermediateResultPartitionID, Set<FailoverVertex>> partitionProducer = new HashMap<>();
 
 		// iterate all the vertices which are topologically sorted
 		for (FailoverVertex vertex : topology.getFailoverVertices()) {
 			HashSet<FailoverVertex> currentRegion = new HashSet<>(1);
 			currentRegion.add(vertex);
 			vertexToRegion.put(vertex, currentRegion);
+			regionInputs.put(currentRegion, new HashSet<>());
+			regionOutputs.put(currentRegion, new HashSet<>());
+			regionConsumers.put(currentRegion, new IdentityHashMap<>());
 
 			for (FailoverEdge inputEdge : vertex.getInputEdges()) {
-				if (inputEdge.getResultPartitionType().isPipelined()) {
-					final FailoverVertex producerVertex = inputEdge.getSourceVertex();
-					final HashSet<FailoverVertex> producerRegion = vertexToRegion.get(producerVertex);
+				final FailoverVertex producerVertex = inputEdge.getSourceVertex();
+				final HashSet<FailoverVertex> producerRegion = vertexToRegion.get(producerVertex);
 
-					if (producerRegion == null) {
-						throw new IllegalStateException("Producer task " + producerVertex.getExecutionVertexName()
-							+ " failover region is null while calculating failover region for the consumer task "
-							+ vertex.getExecutionVertexName() + ". This should be a failover region building bug.");
-					}
+				if (producerRegion == null) {
+					throw new IllegalStateException("Producer task " + producerVertex.getExecutionVertexName()
+						+ " failover region is null while calculating failover region for the consumer task "
+						+ vertex.getExecutionVertexName() + ". This should be a failover region building bug.");
+				}
 
-					// check if it is the same as the producer region, if so skip the merge
-					// this check can significantly reduce compute complexity in All-to-All PIPELINED edge case
-					if (currentRegion != producerRegion) {
+				if (currentRegion != producerRegion) {
+					if (inputEdge.getResultPartitionType().isPipelined()) {
 						// merge current region and producer region
 						// merge the smaller region into the larger one to reduce the cost
 						final HashSet<FailoverVertex> smallerSet;
@@ -154,14 +160,60 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 							vertexToRegion.put(v, largerSet);
 						}
 						largerSet.addAll(smallerSet);
+
+						// merge inputs
+						final Set<IntermediateResultPartitionID> smallerSetInputs = regionInputs.remove(smallerSet);
+						final Set<IntermediateResultPartitionID> largerSetInputs = regionInputs.get(largerSet);
+						Iterator<IntermediateResultPartitionID> inputIterator = largerSetInputs.iterator();
+						while (inputIterator.hasNext()) {
+							final IntermediateResultPartitionID input = inputIterator.next();
+							if (partitionProducer.get(input) == smallerSet) {
+								inputIterator.remove();
+							}
+						}
+						for (IntermediateResultPartitionID input : smallerSetInputs) {
+							if (partitionProducer.get(input) != largerSet) {
+								largerSetInputs.add(input);
+							}
+						}
+
+						// merge outputs
+						final Set<IntermediateResultPartitionID> smallerSetOutputs = regionOutputs.remove(smallerSet);
+						final Set<IntermediateResultPartitionID> largerSetOutputs = regionOutputs.get(largerSet);
+						largerSetOutputs.addAll(smallerSetOutputs);
+
+						// merge consumers
+						final IdentityHashMap<Set<FailoverVertex>, Object> smallerSetConsumers = regionConsumers.remove(smallerSet);
+						final IdentityHashMap<Set<FailoverVertex>, Object> largerSetConsumers = regionConsumers.get(largerSet);
+						largerSetConsumers.putAll(smallerSetConsumers);
+						largerSetConsumers.remove(smallerSet);
+						largerSetConsumers.remove(largerSet);
+
+						// update input regions' consumers
+						for (IntermediateResultPartitionID input : largerSetInputs) {
+							final Set<FailoverVertex> inputRegion = partitionProducer.get(input);
+							regionConsumers.get(inputRegion).remove(smallerSet);
+							regionConsumers.get(inputRegion).put(largerSet, null);
+						}
+
+						// update involved partition producer to the merged region
+						for (IntermediateResultPartitionID output : smallerSetOutputs) {
+							partitionProducer.put(output, largerSet);
+						}
+
 						currentRegion = largerSet;
+					} else {
+						regionInputs.get(currentRegion).add(inputEdge.getResultPartitionID());
+						regionOutputs.get(producerRegion).add(inputEdge.getResultPartitionID());
+						regionConsumers.get(producerRegion).put(currentRegion, null);
+						partitionProducer.put(inputEdge.getResultPartitionID(), producerRegion);
 					}
 				}
 			}
 		}
 
 		// find out all the distinct regions
-		final IdentityHashMap<HashSet<FailoverVertex>, Object> distinctRegions = new IdentityHashMap<>();
+		final IdentityHashMap<HashSet<FailoverVertex>, FailoverRegion> distinctRegions = new IdentityHashMap<>();
 		for (HashSet<FailoverVertex> regionVertices : vertexToRegion.values()) {
 			distinctRegions.put(regionVertices, null);
 		}
@@ -170,13 +222,24 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 		for (HashSet<FailoverVertex> regionVertices : distinctRegions.keySet()) {
 			LOG.debug("Creating a failover region with {} vertices.", regionVertices.size());
 			final FailoverRegion failoverRegion = new FailoverRegion(regionVertices);
+
+			distinctRegions.put(regionVertices, failoverRegion);
+
 			regions.put(failoverRegion, null);
 			for (FailoverVertex vertex : regionVertices) {
 				vertexToRegionMap.put(vertex.getExecutionVertexID(), failoverRegion);
 			}
 		}
 
-		buildRegionInputsAndOutputs();
+//		buildRegionInputsAndOutputs();
+		for (HashSet<FailoverVertex> regionVertices : distinctRegions.keySet()) {
+			final FailoverRegion currentRegion = distinctRegions.get(regionVertices);
+			this.regionInputs.put(currentRegion, new ArrayList<>(regionInputs.get(regionVertices)));
+			Collection<FailoverRegion> consumers = new ArrayList<>();
+			regionConsumers.get(regionVertices).keySet().forEach(vertices -> consumers.add(distinctRegions.get(vertices)));
+			this.regionConsumers.put(currentRegion, consumers);
+		}
+		partitionProducer.forEach((id, vertices) -> this.partitionProducer.put(id, distinctRegions.get(vertices)));
 
 		LOG.info("Created {} failover regions.", regions.size());
 	}
@@ -196,33 +259,35 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 			vertexToRegionMap.put(vertex.getExecutionVertexID(), region);
 		}
 
-		buildRegionInputsAndOutputs();
+//		buildRegionInputsAndOutputs();
+		this.regionInputs.put(region, new ArrayList<>());
+		this.regionConsumers.put(region, new ArrayList<>());
 	}
 
-	private void buildRegionInputsAndOutputs() {
-		for (FailoverRegion region : regions.keySet()) {
-			IdentityHashMap<FailoverRegion, Object> consumers = new IdentityHashMap<>();
-			Set<IntermediateResultPartitionID> inputs = new HashSet<>();
-			Set<ExecutionVertexID> consumerVertices = new HashSet<>();
-			Set<FailoverVertex> regionVertices = region.getAllExecutionVertices();
-			regionVertices.forEach(v -> {
-				for (FailoverEdge inEdge : v.getInputEdges()) {
-					if (!regionVertices.contains(inEdge.getSourceVertex())) {
-						inputs.add(inEdge.getResultPartitionID());
-					}
-				}
-				for (FailoverEdge outEdge : v.getOutputEdges()) {
-					if (!regionVertices.contains(outEdge.getTargetVertex())) {
-						this.partitionProducer.put(outEdge.getResultPartitionID(), region);
-						consumerVertices.add(outEdge.getTargetVertex().getExecutionVertexID());
-					}
-				}
-			});
-			this.regionInputs.put(region, new ArrayList<>(inputs));
-			consumerVertices.forEach(id -> consumers.put(vertexToRegionMap.get(id), null));
-			this.regionConsumers.put(region, new ArrayList<>(consumers.keySet()));
-		}
-	}
+//	private void buildRegionInputsAndOutputs() {
+//		for (FailoverRegion region : regions.keySet()) {
+//			IdentityHashMap<FailoverRegion, Object> consumers = new IdentityHashMap<>();
+//			Set<IntermediateResultPartitionID> inputs = new HashSet<>();
+//			Set<ExecutionVertexID> consumerVertices = new HashSet<>();
+//			Set<FailoverVertex> regionVertices = region.getAllExecutionVertices();
+//			regionVertices.forEach(v -> {
+//				for (FailoverEdge inEdge : v.getInputEdges()) {
+//					if (!regionVertices.contains(inEdge.getSourceVertex())) {
+//						inputs.add(inEdge.getResultPartitionID());
+//					}
+//				}
+//				for (FailoverEdge outEdge : v.getOutputEdges()) {
+//					if (!regionVertices.contains(outEdge.getTargetVertex())) {
+//						this.partitionProducer.put(outEdge.getResultPartitionID(), region);
+//						consumerVertices.add(outEdge.getTargetVertex().getExecutionVertexID());
+//					}
+//				}
+//			});
+//			this.regionInputs.put(region, new ArrayList<>(inputs));
+//			consumerVertices.forEach(id -> consumers.put(vertexToRegionMap.get(id), null));
+//			this.regionConsumers.put(region, new ArrayList<>(consumers.keySet()));
+//		}
+//	}
 
 	// ------------------------------------------------------------------------
 	//  task failure handling
