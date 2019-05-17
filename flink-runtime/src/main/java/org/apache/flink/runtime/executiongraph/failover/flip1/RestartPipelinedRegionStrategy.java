@@ -218,7 +218,7 @@ public class RestartPipelinedRegionStrategy implements FailoverStrategy {
 					}
 				}
 			});
-			this.regionInputs.put(region, inputs);
+			this.regionInputs.put(region, new ArrayList<>(inputs));
 			consumerVertices.forEach(id -> consumers.put(vertexToRegionMap.get(id), null));
 			this.regionConsumers.put(region, new ArrayList<>(consumers.keySet()));
 		}
