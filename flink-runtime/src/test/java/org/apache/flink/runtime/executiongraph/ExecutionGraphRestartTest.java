@@ -21,6 +21,7 @@ package org.apache.flink.runtime.executiongraph;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
+import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.JobException;
 import org.apache.flink.runtime.akka.AkkaUtils;
@@ -76,6 +77,7 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -550,6 +552,48 @@ public class ExecutionGraphRestartTest extends TestLogger {
 
 		if (eg.getNumberOfFullRestarts() > 2) {
 			fail("Too many restarts: " + eg.getNumberOfFullRestarts());
+		}
+	}
+
+	@Test
+	public void testConcurrentModificationException() throws Exception {
+		final SlotSharingGroup group = new SlotSharingGroup();
+		final JobVertex vertex1 = createNoOpVertex("vertex1", 1);
+		vertex1.setSlotSharingGroup(group);
+		final JobVertex vertex2 = createNoOpVertex("vertex2", 3);
+		vertex2.setSlotSharingGroup(group);
+		final JobVertex vertex3 = createNoOpVertex("vertex3", 1);
+		vertex3.setSlotSharingGroup(group);
+		vertex3.connectNewDataSetAsInput(vertex2, DistributionPattern.ALL_TO_ALL, ResultPartitionType.PIPELINED);
+
+		try (SlotPoolImpl slotPool = createSlotPoolImpl()) {
+			final SlotProvider slots = createSchedulerWithSlots(2, slotPool, new LocalTaskManagerLocation());
+
+			final ExecutionGraph eg = new ExecutionGraphTestUtils.TestingExecutionGraphBuilder(TEST_JOB_ID, vertex1, vertex2, vertex3)
+				.setSlotProvider(slots)
+				.setAllocationTimeout(Time.minutes(60))
+				.setScheduleMode(ScheduleMode.EAGER)
+				.setAllowQueuedScheduling(true)
+				.build();
+
+			eg.start(mainThreadExecutor);
+
+			eg.scheduleForExecution();
+
+//			try {
+//				slotPool.failAllocation(
+//					slotPool.getAllocatedSlotsInformation().iterator().next().getAllocationId(),
+//					new Exception("test exception"));
+//
+//				fail("ConcurrentModificationException is expected but not happens");
+//			} catch (ConcurrentModificationException cme) {
+//				// expected
+//			}
+			slotPool.failAllocation(
+				slotPool.getAllocatedSlotsInformation().iterator().next().getAllocationId(),
+				new Exception("test exception"));
+
+			eg.waitUntilTerminal();
 		}
 	}
 

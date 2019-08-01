@@ -310,6 +310,11 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 					if ((state == SCHEDULED || state == CREATED) && !taskManagerLocationFuture.isDone()) {
 						taskManagerLocationFuture.complete(logicalSlot.getTaskManagerLocation());
 						assignedAllocationID = logicalSlot.getAllocationId();
+						LOG.info("{} is assigned resource {}_{} with {}",
+							getVertexWithAttempt(),
+							logicalSlot.getTaskManagerLocation().getResourceID(),
+							logicalSlot.getPhysicalSlotNumber(),
+							assignedAllocationID);
 						return true;
 					} else {
 						// free assigned resource and return false

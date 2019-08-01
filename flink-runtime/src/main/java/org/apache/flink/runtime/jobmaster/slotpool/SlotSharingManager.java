@@ -186,7 +186,7 @@ public class SlotSharingManager {
 			.stream()
 				.flatMap((Map<AllocationID, MultiTaskSlot> map) -> map.values().stream())
 				.filter((MultiTaskSlot multiTaskSlot) ->
-					!multiTaskSlot.contains(groupId) && !multiTaskSlot.isReleasingChildren())
+					!multiTaskSlot.contains(groupId))
 				.map((MultiTaskSlot multiTaskSlot) -> {
 					SlotInfo slotInfo = multiTaskSlot.getSlotContextFuture().join();
 					return new SlotSelectionStrategy.SlotInfoAndResources(

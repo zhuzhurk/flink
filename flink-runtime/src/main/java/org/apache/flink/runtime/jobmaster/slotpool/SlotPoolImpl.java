@@ -163,7 +163,7 @@ public class SlotPoolImpl implements SlotPool {
 	//  Getters
 	// ------------------------------------------------------------------------
 
-	private Collection<SlotInfo> getAllocatedSlotsInformation() {
+	public Collection<SlotInfo> getAllocatedSlotsInformation() {
 		return allocatedSlots.listSlotInfo();
 	}
 
