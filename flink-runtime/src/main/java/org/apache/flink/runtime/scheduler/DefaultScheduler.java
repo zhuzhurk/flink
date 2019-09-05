@@ -78,7 +78,7 @@ public class DefaultScheduler extends SchedulerBase {
 	}
 
 	@Override
-	public void startScheduling() {
+	protected void startSchedulingInternal() {
 		throw new UnsupportedOperationException();
 	}
 }

@@ -221,6 +221,11 @@ public abstract class SchedulerBase implements SchedulerNG {
 			partitionTracker);
 	}
 
+	@Deprecated
+	protected ExecutionGraph getExecutionGraph() {
+		return executionGraph;
+	}
+
 	/**
 	 * Tries to restore the given {@link ExecutionGraph} from the provided {@link SavepointRestoreSettings}.
 	 *
@@ -253,16 +258,12 @@ public abstract class SchedulerBase implements SchedulerNG {
 	}
 
 	@Override
-	public void startScheduling() {
+	public final void startScheduling() {
 		mainThreadExecutor.assertRunningInMainThread();
-
-		try {
-			executionGraph.scheduleForExecution();
-		}
-		catch (Throwable t) {
-			executionGraph.failGlobal(t);
-		}
+		startSchedulingInternal();
 	}
+
+	protected abstract void startSchedulingInternal();
 
 	@Override
 	public void suspend(Throwable cause) {
