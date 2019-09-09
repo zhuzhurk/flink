@@ -249,6 +249,8 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	/** Blob writer used to offload RPC messages. */
 	private final BlobWriter blobWriter;
 
+	private boolean legacyScheduling = true;
+
 	/** The total number of vertices currently in the execution graph. */
 	private int numVerticesTotal;
 
@@ -257,6 +259,8 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	private PartitionReleaseStrategy partitionReleaseStrategy;
 
 	private SchedulingTopology schedulingTopology;
+
+	private TaskFailureListener taskFailureListener = null;
 
 	// ------ Configuration of the Execution -------
 
@@ -512,8 +516,6 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		this.resultPartitionAvailabilityChecker = new ExecutionGraphResultPartitionAvailabilityChecker(
 			this::createResultPartitionId,
 			partitionTracker);
-
-		LOG.info("Job recovers via failover strategy: {}", failoverStrategy.getStrategyName());
 	}
 
 	public void start(@Nonnull ComponentMainThreadExecutor jobMasterMainThreadExecutor) {
@@ -880,6 +882,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		return StringifiedAccumulatorResult.stringifyAccumulatorResults(accumulatorMap);
 	}
 
+	public void setTaskFailureListener(final TaskFailureListener taskFailureListener) {
+		checkNotNull(taskFailureListener);
+		checkState(this.taskFailureListener == null, "taskFailureListener can be only set once");
+		this.taskFailureListener = taskFailureListener;
+	}
+
 	// --------------------------------------------------------------------------------------------
 	//  Actions
 	// --------------------------------------------------------------------------------------------
@@ -942,9 +950,27 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			new DefaultFailoverTopology(this));
 	}
 
+	public void setLegacyScheduling(final boolean legacyScheduling) {
+		this.legacyScheduling = legacyScheduling;
+	}
+
+	public boolean isLegacyScheduling() {
+		return legacyScheduling;
+	}
+
+	public void transitionToRunning() {
+		if (!transitionState(JobStatus.CREATED, JobStatus.RUNNING)) {
+			throw new IllegalStateException("Job may only be scheduled from state " + JobStatus.CREATED);
+		}
+	}
+
 	public void scheduleForExecution() throws JobException {
 
 		assertRunningInJobMasterMainThread();
+
+		if (isLegacyScheduling()) {
+			LOG.info("Job recovers via failover strategy: {}", failoverStrategy.getStrategyName());
+		}
 
 		final long currentGlobalModVersion = globalModVersion;
 
@@ -1129,6 +1155,9 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	 * @param t The exception that caused the failure.
 	 */
 	public void failGlobal(Throwable t) {
+		if (!isLegacyScheduling()) {
+			ExceptionUtils.rethrow(t);
+		}
 
 		assertRunningInJobMasterMainThread();
 
@@ -1306,6 +1335,10 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	//  State Transitions
 	// ------------------------------------------------------------------------
 
+	private void transitionState(JobStatus newState) {
+		transitionState(state, newState);
+	}
+
 	private boolean transitionState(JobStatus current, JobStatus newState) {
 		return transitionState(current, newState, null);
 	}
@@ -1433,7 +1466,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	 *
 	 * @return true if the operation could be executed; false if a concurrent job status change occurred
 	 */
+	@Deprecated
 	private boolean tryRestartOrFail(long globalModVersionForRestart) {
+		if (!isLegacyScheduling()) {
+			return true;
+		}
+
 		JobStatus currentState = state;
 
 		if (currentState == JobStatus.FAILING || currentState == JobStatus.RESTARTING) {
@@ -1483,6 +1521,20 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			// this operation is only allowed in the state FAILING or RESTARTING
 			return false;
 		}
+	}
+
+	public void failJob(Throwable cause) {
+		if (state == JobStatus.FAILING || state.isGloballyTerminalState()) {
+			return;
+		}
+
+		transitionState(JobStatus.FAILING);
+		initFailureCause(cause);
+
+		cancelVerticesAsync().whenComplete((aVoid, throwable) -> {
+			transitionState(JobStatus.FAILED);
+			onTerminalState(JobStatus.FAILED);
+		});
 	}
 
 	private void onTerminalState(JobStatus status) {
@@ -1727,6 +1779,10 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			final ExecutionState newExecutionState,
 			final Throwable error) {
 
+		if (!isLegacyScheduling()) {
+			return;
+		}
+
 		// see what this means for us. currently, the first FAILED state means -> FAILED
 		if (newExecutionState == ExecutionState.FAILED) {
 			final Throwable ex = error != null ? error : new FlinkException("Unknown Error (missing cause)");
@@ -1754,6 +1810,12 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	void assertRunningInJobMasterMainThread() {
 		if (!(jobMasterMainThreadExecutor instanceof ComponentMainThreadExecutor.DummyComponentMainThreadExecutor)) {
 			jobMasterMainThreadExecutor.assertRunningInMainThread();
+		}
+	}
+
+	void notifyTaskFailed(final ExecutionAttemptID attemptId, final Throwable t) {
+		if (taskFailureListener != null) {
+			taskFailureListener.notifyFailed(attemptId, t);
 		}
 	}
 
