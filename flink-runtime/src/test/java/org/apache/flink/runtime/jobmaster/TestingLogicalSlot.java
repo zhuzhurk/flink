@@ -71,7 +71,7 @@ public class TestingLogicalSlot implements LogicalSlot {
 		this.slotNumber = slotNumber;
 		this.allocationId = Preconditions.checkNotNull(allocationId);
 		this.slotRequestId = Preconditions.checkNotNull(slotRequestId);
-		this.slotSharingGroupId = Preconditions.checkNotNull(slotSharingGroupId);
+		this.slotSharingGroupId = slotSharingGroupId;
 		this.releaseFuture = new CompletableFuture<>();
 		this.automaticallyCompleteReleaseFuture = automaticallyCompleteReleaseFuture;
 		this.slotOwner = slotOwner;
