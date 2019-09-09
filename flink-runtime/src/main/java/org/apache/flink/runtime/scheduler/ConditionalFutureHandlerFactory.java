@@ -17,42 +17,25 @@
  * under the License.
  */
 
-package org.apache.flink.runtime.executiongraph.failover.flip1;
+package org.apache.flink.runtime.scheduler;
+
+import java.util.function.BiFunction;
 
 /**
- * A RestartBackoffTimeStrategy implementation for tests.
+ * Factory for {@link ConditionalFutureHandler}.
  */
-public class TestRestartBackoffTimeStrategy implements RestartBackoffTimeStrategy {
+class ConditionalFutureHandlerFactory {
 
-	private boolean canRestart;
+	private final ExecutionVertexVersioner executionVertexVersioner;
 
-	private long backoffTime;
-
-	public TestRestartBackoffTimeStrategy(boolean canRestart, long backoffTime) {
-		this.canRestart = canRestart;
-		this.backoffTime = backoffTime;
+	public ConditionalFutureHandlerFactory(final ExecutionVertexVersioner executionVertexVersioner) {
+		this.executionVertexVersioner = executionVertexVersioner;
 	}
 
-	@Override
-	public boolean canRestart() {
-		return canRestart;
-	}
+	public <T> ConditionalFutureHandler<T> requireVertexVersion(
+		final ExecutionVertexVersion executionVertexVersion,
+		final BiFunction<T, Throwable, Void> delegate) {
 
-	@Override
-	public long getBackoffTime() {
-		return backoffTime;
-	}
-
-	@Override
-	public void notifyFailure(Throwable cause) {
-		// ignore
-	}
-
-	public void setCanRestart(final boolean canRestart) {
-		this.canRestart = canRestart;
-	}
-
-	public void setBackoffTime(final long backoffTime) {
-		this.backoffTime = backoffTime;
+		return new ConditionalFutureHandler<>(executionVertexVersioner, executionVertexVersion, delegate);
 	}
 }

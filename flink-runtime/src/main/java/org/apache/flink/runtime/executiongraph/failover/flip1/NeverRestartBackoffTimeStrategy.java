@@ -20,39 +20,24 @@
 package org.apache.flink.runtime.executiongraph.failover.flip1;
 
 /**
- * A RestartBackoffTimeStrategy implementation for tests.
+ * Restart backoff time strategy that never restarts.
  */
-public class TestRestartBackoffTimeStrategy implements RestartBackoffTimeStrategy {
+public enum NeverRestartBackoffTimeStrategy implements RestartBackoffTimeStrategy {
 
-	private boolean canRestart;
-
-	private long backoffTime;
-
-	public TestRestartBackoffTimeStrategy(boolean canRestart, long backoffTime) {
-		this.canRestart = canRestart;
-		this.backoffTime = backoffTime;
-	}
+	INSTANCE;
 
 	@Override
 	public boolean canRestart() {
-		return canRestart;
+		return false;
 	}
 
 	@Override
 	public long getBackoffTime() {
-		return backoffTime;
+		return 0;
 	}
 
 	@Override
-	public void notifyFailure(Throwable cause) {
-		// ignore
-	}
+	public void notifyFailure(final Throwable cause) {
 
-	public void setCanRestart(final boolean canRestart) {
-		this.canRestart = canRestart;
-	}
-
-	public void setBackoffTime(final long backoffTime) {
-		this.backoffTime = backoffTime;
 	}
 }

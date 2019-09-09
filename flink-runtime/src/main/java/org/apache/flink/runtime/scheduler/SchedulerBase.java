@@ -45,8 +45,12 @@ import org.apache.flink.runtime.executiongraph.ExecutionGraph;
 import org.apache.flink.runtime.executiongraph.ExecutionGraphBuilder;
 import org.apache.flink.runtime.executiongraph.ExecutionGraphException;
 import org.apache.flink.runtime.executiongraph.ExecutionJobVertex;
+import org.apache.flink.runtime.executiongraph.ExecutionVertex;
 import org.apache.flink.runtime.executiongraph.IntermediateResult;
 import org.apache.flink.runtime.executiongraph.JobStatusListener;
+import org.apache.flink.runtime.executiongraph.TaskFailureListener;
+import org.apache.flink.runtime.executiongraph.failover.adapter.DefaultFailoverTopology;
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverTopology;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategy;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategyFactory;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategyResolving;
@@ -70,6 +74,8 @@ import org.apache.flink.runtime.query.KvStateLocationRegistry;
 import org.apache.flink.runtime.query.UnknownKvStateLocation;
 import org.apache.flink.runtime.rest.handler.legacy.backpressure.BackPressureStatsTracker;
 import org.apache.flink.runtime.rest.handler.legacy.backpressure.OperatorBackPressureStats;
+import org.apache.flink.runtime.scheduler.adapter.ExecutionGraphToSchedulingTopologyAdapter;
+import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 import org.apache.flink.runtime.shuffle.ShuffleMaster;
 import org.apache.flink.runtime.state.KeyGroupRange;
 import org.apache.flink.runtime.taskmanager.TaskExecutionState;
@@ -83,6 +89,7 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -90,6 +97,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
+import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * Base class which can be used to implement {@link SchedulerNG}.
@@ -221,11 +229,6 @@ public abstract class SchedulerBase implements SchedulerNG {
 			partitionTracker);
 	}
 
-	@Deprecated
-	protected ExecutionGraph getExecutionGraph() {
-		return executionGraph;
-	}
-
 	/**
 	 * Tries to restore the given {@link ExecutionGraph} from the provided {@link SavepointRestoreSettings}.
 	 *
@@ -245,6 +248,85 @@ public abstract class SchedulerBase implements SchedulerNG {
 			}
 		}
 	}
+
+	@Deprecated
+	protected ExecutionGraph getExecutionGraph() {
+		return executionGraph;
+	}
+
+	protected void setTaskFailureListener(TaskFailureListener taskFailureListener) {
+		executionGraph.setTaskFailureListener(taskFailureListener);
+	}
+
+	protected void resetForNewExecution(final Collection<ExecutionVertexID> verticesToDeploy) {
+		verticesToDeploy.forEach(executionVertexId -> getExecutionVertex(executionVertexId)
+			.resetForNewExecutionIfInTerminalState());
+	}
+
+	protected void transitionToScheduled(final Collection<ExecutionVertexID> verticesToDeploy) {
+		verticesToDeploy.forEach(executionVertexId -> getExecutionVertex(executionVertexId)
+			.getCurrentExecutionAttempt()
+			.transitionState(ExecutionState.SCHEDULED));
+	}
+
+	protected void updateConsumers(ResultPartitionID resultPartitionId) {
+		try {
+			executionGraph.scheduleOrUpdateConsumers(resultPartitionId);
+		} catch (ExecutionGraphException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	protected ComponentMainThreadExecutor getMainThreadExecutor() {
+		return mainThreadExecutor;
+	}
+
+	protected void failJob(Throwable cause) {
+		executionGraph.failJob(cause);
+	}
+
+	protected void updateState(TaskExecutionState taskExecutionState) {
+		executionGraph.updateState(taskExecutionState);
+	}
+
+	protected FailoverTopology getFailoverTopology() {
+		return new DefaultFailoverTopology(executionGraph);
+	}
+
+	protected ExecutionGraphToSchedulingTopologyAdapter getSchedulingTopology() {
+		return new ExecutionGraphToSchedulingTopologyAdapter(executionGraph);
+	}
+
+	protected InputsLocationsRetriever getInputsLocationsRetriever() {
+		checkState(executionGraph != null);
+		return new ExecutionGraphToInputsLocationsRetrieverAdapter(executionGraph);
+	}
+
+	protected void prepareExecutionGraphForScheduling() {
+		executionGraph.setLegacyScheduling(false);
+		executionGraph.transitionToRunning();
+	}
+
+	protected Optional<ExecutionVertexID> getExecutionVertexId(final ExecutionAttemptID executionAttemptId) {
+		return Optional.ofNullable(executionGraph.getRegisteredExecutions().get(executionAttemptId))
+			.map(this::getExecutionVertexID);
+	}
+
+	private ExecutionVertexID getExecutionVertexID(final Execution execution) {
+		return new ExecutionVertexID(execution.getVertex().getJobvertexId(), execution.getVertex().getParallelSubtaskIndex());
+	}
+
+	protected ExecutionVertex getExecutionVertex(final ExecutionVertexID executionVertexId) {
+		return executionGraph.getAllVertices().get(executionVertexId.getJobVertexId()).getTaskVertices()[executionVertexId.getSubtaskIndex()];
+	}
+
+	protected JobGraph getJobGraph() {
+		return jobGraph;
+	}
+
+	// ------------------------------------------------------------------------
+	// SchedulerNG
+	// ------------------------------------------------------------------------
 
 	@Override
 	public void setMainThreadExecutor(final ComponentMainThreadExecutor mainThreadExecutor) {
