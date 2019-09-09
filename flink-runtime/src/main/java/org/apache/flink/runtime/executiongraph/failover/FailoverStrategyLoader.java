@@ -44,13 +44,18 @@ public class FailoverStrategyLoader {
 	/** Config name for the {@link RestartPipelinedRegionStrategy}. */
 	public static final String LEGACY_PIPELINED_REGION_RESTART_STRATEGY_NAME = "region-legacy";
 
+	/** Config name for the {@link NoOpFailoverStrategy} */
+	public static final String NO_OP_FAILOVER_STRATEGY = "noop";
+
 	// ------------------------------------------------------------------------
 
 	/**
 	 * Loads a FailoverStrategy Factory from the given configuration.
 	 */
 	public static FailoverStrategy.Factory loadFailoverStrategy(Configuration config, @Nullable Logger logger) {
-		final String strategyParam = config.getString(JobManagerOptions.EXECUTION_FAILOVER_STRATEGY);
+		final String strategyParam = config.getString(JobManagerOptions.SCHEDULER).equals("ng") ?
+			NO_OP_FAILOVER_STRATEGY :
+			config.getString(JobManagerOptions.EXECUTION_FAILOVER_STRATEGY);
 
 		if (StringUtils.isNullOrWhitespaceOnly(strategyParam)) {
 			if (logger != null) {
@@ -73,6 +78,9 @@ public class FailoverStrategyLoader {
 
 				case INDIVIDUAL_RESTART_STRATEGY_NAME:
 					return new RestartIndividualStrategy.Factory();
+
+				case NO_OP_FAILOVER_STRATEGY:
+					return new NoOpFailoverStrategy.Factory();
 
 				default:
 					// we could interpret the parameter as a factory class name and instantiate that
