@@ -138,15 +138,15 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 			shuffleMaster,
 			partitionTracker);
 
-		this.restartBackoffTimeStrategy = restartBackoffTimeStrategy;
-		this.slotRequestTimeout = slotRequestTimeout;
-		this.slotProvider = slotProvider;
-		this.delayExecutor = delayExecutor;
-		this.userCodeLoader = userCodeLoader;
+		this.restartBackoffTimeStrategy = checkNotNull(restartBackoffTimeStrategy);
+		this.slotRequestTimeout = checkNotNull(slotRequestTimeout);
+		this.slotProvider = checkNotNull(slotProvider);
+		this.delayExecutor = checkNotNull(delayExecutor);
+		this.userCodeLoader = checkNotNull(userCodeLoader);
 		this.schedulingStrategyFactory = checkNotNull(schedulingStrategyFactory);
 		this.failoverStrategyFactory = checkNotNull(failoverStrategyFactory);
 		this.executionVertexOperations = checkNotNull(executionVertexOperations);
-		this.executionVertexVersioner = executionVertexVersioner;
+		this.executionVertexVersioner = checkNotNull(executionVertexVersioner);
 		this.conditionalFutureHandlerFactory = new ConditionalFutureHandlerFactory(executionVertexVersioner);
 	}
 
