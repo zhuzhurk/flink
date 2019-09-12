@@ -67,7 +67,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
- * Stub implementation of the future default scheduler.
+ * The future default scheduler.
  */
 public class DefaultScheduler extends SchedulerBase implements SchedulerOperations {
 
