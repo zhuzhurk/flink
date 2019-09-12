@@ -260,7 +260,8 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 	private SchedulingTopology schedulingTopology;
 
-	private TaskFailureListener taskFailureListener = null;
+	@Nullable
+	private TaskFailureListener taskFailureListener;
 
 	// ------ Configuration of the Execution -------
 
