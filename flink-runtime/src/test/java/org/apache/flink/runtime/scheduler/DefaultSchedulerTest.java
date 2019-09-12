@@ -52,6 +52,7 @@ import org.apache.flink.runtime.shuffle.NettyShuffleMaster;
 import org.apache.flink.runtime.taskmanager.TaskExecutionState;
 import org.apache.flink.runtime.testtasks.NoOpInvokable;
 import org.apache.flink.runtime.testutils.DirectScheduledExecutorService;
+import org.apache.flink.util.ExecutorUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.TestLogger;
 
@@ -126,8 +127,7 @@ public class DefaultSchedulerTest extends TestLogger {
 		}
 
 		if (executor != null) {
-			executor.shutdownNow();
-			executor.awaitTermination(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+			ExecutorUtils.gracefulShutdown(TIMEOUT_MS, TimeUnit.MILLISECONDS, executor);
 		}
 	}
 
