@@ -122,8 +122,7 @@ public class DefaultSchedulerTest extends TestLogger {
 	@After
 	public void tearDown() throws Exception {
 		if (scheduledExecutorService != null) {
-			scheduledExecutorService.shutdownNow();
-			scheduledExecutorService.awaitTermination(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+			ExecutorUtils.gracefulShutdown(TIMEOUT_MS, TimeUnit.MILLISECONDS, scheduledExecutorService);
 		}
 
 		if (executor != null) {
