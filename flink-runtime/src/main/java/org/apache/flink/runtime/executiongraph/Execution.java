@@ -853,7 +853,7 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	}
 
 	private void scheduleConsumer(ExecutionVertex consumerVertex) {
-		if (!vertex.isLegacyScheduling()) {
+		if (!isLegacyScheduling()) {
 			return;
 		}
 
