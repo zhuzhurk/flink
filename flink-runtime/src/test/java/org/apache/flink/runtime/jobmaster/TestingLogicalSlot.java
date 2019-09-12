@@ -53,6 +53,7 @@ public class TestingLogicalSlot implements LogicalSlot {
 
 	private final SlotRequestId slotRequestId;
 
+	@Nullable
 	private final SlotSharingGroupId slotSharingGroupId;
 
 	TestingLogicalSlot(
@@ -61,7 +62,7 @@ public class TestingLogicalSlot implements LogicalSlot {
 			int slotNumber,
 			AllocationID allocationId,
 			SlotRequestId slotRequestId,
-			SlotSharingGroupId slotSharingGroupId,
+			@Nullable SlotSharingGroupId slotSharingGroupId,
 			boolean automaticallyCompleteReleaseFuture,
 			SlotOwner slotOwner) {
 
