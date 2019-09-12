@@ -101,8 +101,6 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 
 	private final ArrayList<InputSplit> inputSplits;
 
-	private boolean sendScheduleOrUpdateConsumerMessage;
-
 	// --------------------------------------------------------------------------------------------
 
 	/**
@@ -366,14 +364,6 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 
 	public InputDependencyConstraint getInputDependencyConstraint() {
 		return getJobVertex().getInputDependencyConstraint();
-	}
-
-	public void setSendScheduleOrUpdateConsumerMessage(final boolean sendScheduleOrUpdateConsumerMessage) {
-		this.sendScheduleOrUpdateConsumerMessage = sendScheduleOrUpdateConsumerMessage;
-	}
-
-	public boolean isSendScheduleOrUpdateConsumerMessage() {
-		return sendScheduleOrUpdateConsumerMessage;
 	}
 
 	// --------------------------------------------------------------------------------------------
