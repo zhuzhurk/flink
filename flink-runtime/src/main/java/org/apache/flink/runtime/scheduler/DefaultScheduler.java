@@ -367,7 +367,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 	}
 
 	private BiFunction<LogicalSlot, Throwable, Void> assignResourceOrHandleError(final DeploymentHandle deploymentHandle) {
-		final ExecutionVertexVersion requiredVertexVersion = deploymentHandle.getExecutionVertexVersion();
+		final ExecutionVertexVersion requiredVertexVersion = deploymentHandle.getRequiredVertexVersion();
 
 		return conditionalFutureHandlerFactory.requireVertexVersion(
 			requiredVertexVersion,
@@ -391,7 +391,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 	}
 
 	private BiFunction<Object, Throwable, Void> deployOrHandleError(final DeploymentHandle deploymentHandle) {
-		final ExecutionVertexVersion requiredVertexVersion = deploymentHandle.getExecutionVertexVersion();
+		final ExecutionVertexVersion requiredVertexVersion = deploymentHandle.getRequiredVertexVersion();
 
 		return conditionalFutureHandlerFactory.requireVertexVersion(
 			requiredVertexVersion,

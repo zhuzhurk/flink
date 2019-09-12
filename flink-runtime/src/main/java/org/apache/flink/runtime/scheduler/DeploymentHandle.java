@@ -24,28 +24,28 @@ import org.apache.flink.util.Preconditions;
 
 class DeploymentHandle {
 
-	private final ExecutionVertexVersion executionVertexVersion;
+	private final ExecutionVertexVersion requiredVertexVersion;
 
 	private final ExecutionVertexDeploymentOption executionVertexDeploymentOption;
 
 	private final SlotExecutionVertexAssignment slotExecutionVertexAssignment;
 
 	public DeploymentHandle(
-		final ExecutionVertexVersion executionVertexVersion,
+		final ExecutionVertexVersion requiredVertexVersion,
 		final ExecutionVertexDeploymentOption executionVertexDeploymentOption,
 		final SlotExecutionVertexAssignment slotExecutionVertexAssignment) {
 
-		this.executionVertexVersion = Preconditions.checkNotNull(executionVertexVersion);
+		this.requiredVertexVersion = Preconditions.checkNotNull(requiredVertexVersion);
 		this.executionVertexDeploymentOption = Preconditions.checkNotNull(executionVertexDeploymentOption);
 		this.slotExecutionVertexAssignment = Preconditions.checkNotNull(slotExecutionVertexAssignment);
 	}
 
 	public ExecutionVertexID getExecutionVertexId() {
-		return executionVertexVersion.getExecutionVertexId();
+		return requiredVertexVersion.getExecutionVertexId();
 	}
 
-	public ExecutionVertexVersion getExecutionVertexVersion() {
-		return executionVertexVersion;
+	public ExecutionVertexVersion getRequiredVertexVersion() {
+		return requiredVertexVersion;
 	}
 
 	public DeploymentOption getDeploymentOption() {
