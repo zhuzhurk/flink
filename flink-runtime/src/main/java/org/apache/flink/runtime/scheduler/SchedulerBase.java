@@ -133,8 +133,8 @@ public abstract class SchedulerBase implements SchedulerNG {
 	private final Time slotRequestTimeout;
 
 	private ComponentMainThreadExecutor mainThreadExecutor = new ComponentMainThreadExecutor.DummyComponentMainThreadExecutor(
-		"LegacyScheduler is not initialized with proper main thread executor. " +
-			"Call to LegacyScheduler.setMainThreadExecutor(...) required.");
+		"SchedulerBase is not initialized with proper main thread executor. " +
+			"Call to SchedulerBase.setMainThreadExecutor(...) required.");
 
 	public SchedulerBase(
 		final Logger log,
