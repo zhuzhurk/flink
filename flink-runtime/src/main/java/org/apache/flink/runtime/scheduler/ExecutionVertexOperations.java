@@ -29,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  */
 interface ExecutionVertexOperations {
 
-	void deploy(ExecutionVertex executionVertex, DeploymentOption deploymentOption) throws JobException;
+	void deploy(ExecutionVertex executionVertex) throws JobException;
 
 	CompletableFuture<?> cancel(ExecutionVertex executionVertex);
 }

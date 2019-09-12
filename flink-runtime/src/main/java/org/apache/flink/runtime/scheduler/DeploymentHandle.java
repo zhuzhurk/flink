@@ -19,32 +19,37 @@
 
 package org.apache.flink.runtime.scheduler;
 
+import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 import org.apache.flink.util.Preconditions;
 
 class DeploymentHandle {
 
 	private final ExecutionVertexVersion executionVertexVersion;
 
-	private final ExecutionVertexDeploymentOption deploymentOption;
+	private final ExecutionVertexDeploymentOption executionVertexDeploymentOption;
 
 	private final SlotExecutionVertexAssignment slotExecutionVertexAssignment;
 
 	public DeploymentHandle(
 		final ExecutionVertexVersion executionVertexVersion,
-		final ExecutionVertexDeploymentOption deploymentOption,
+		final ExecutionVertexDeploymentOption executionVertexDeploymentOption,
 		final SlotExecutionVertexAssignment slotExecutionVertexAssignment) {
 
 		this.executionVertexVersion = Preconditions.checkNotNull(executionVertexVersion);
-		this.deploymentOption = Preconditions.checkNotNull(deploymentOption);
+		this.executionVertexDeploymentOption = Preconditions.checkNotNull(executionVertexDeploymentOption);
 		this.slotExecutionVertexAssignment = Preconditions.checkNotNull(slotExecutionVertexAssignment);
+	}
+
+	public ExecutionVertexID getExecutionVertexId() {
+		return executionVertexVersion.getExecutionVertexId();
 	}
 
 	public ExecutionVertexVersion getExecutionVertexVersion() {
 		return executionVertexVersion;
 	}
 
-	public ExecutionVertexDeploymentOption getDeploymentOption() {
-		return deploymentOption;
+	public DeploymentOption getDeploymentOption() {
+		return executionVertexDeploymentOption.getDeploymentOption();
 	}
 
 	public SlotExecutionVertexAssignment getSlotExecutionVertexAssignment() {

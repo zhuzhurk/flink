@@ -326,13 +326,12 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 
 	private void deployIndividually(final Collection<DeploymentHandle> deploymentHandles) {
 		for (final DeploymentHandle deploymentHandle : deploymentHandles) {
-			final ExecutionVertexVersion requiredVertexVersion = deploymentHandle.getExecutionVertexVersion();
 			FutureUtils.assertNoException(
 				deploymentHandle
 					.getSlotExecutionVertexAssignment()
 					.getLogicalSlotFuture()
-					.handle(assignResourceOrHandleError(requiredVertexVersion))
-					.handle(deployOrHandleError(requiredVertexVersion, deploymentHandle.getDeploymentOption())));
+					.handle(assignResourceOrHandleError(deploymentHandle))
+					.handle(deployOrHandleError(deploymentHandle)));
 		}
 	}
 
@@ -347,7 +346,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 			final CompletableFuture<Void> slotAssigned = deploymentHandle
 				.getSlotExecutionVertexAssignment()
 				.getLogicalSlotFuture()
-				.handle(assignResourceOrHandleError(deploymentHandle.getExecutionVertexVersion()));
+				.handle(assignResourceOrHandleError(deploymentHandle));
 			slotAssignedFutures.add(slotAssigned);
 		}
 		return FutureUtils.waitForAll(slotAssignedFutures);
@@ -361,24 +360,27 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 				checkState(slotAssigned.isDone());
 
 				FutureUtils.assertNoException(
-					slotAssigned.handle(deployOrHandleError(
-						deploymentHandle.getExecutionVertexVersion(),
-						deploymentHandle.getDeploymentOption())));
+					slotAssigned.handle(deployOrHandleError(deploymentHandle)));
 			}
 			return null;
 		};
 	}
 
-	private BiFunction<LogicalSlot, Throwable, Void> assignResourceOrHandleError(final ExecutionVertexVersion executionVertexVersion) {
+	private BiFunction<LogicalSlot, Throwable, Void> assignResourceOrHandleError(final DeploymentHandle deploymentHandle) {
+		final ExecutionVertexVersion requiredVertexVersion = deploymentHandle.getExecutionVertexVersion();
+
 		return conditionalFutureHandlerFactory.requireVertexVersion(
-			executionVertexVersion,
+			requiredVertexVersion,
 			(logicalSlot, throwable) -> {
 
-				final ExecutionVertexID executionVertexId = executionVertexVersion.getExecutionVertexId();
+				final ExecutionVertexID executionVertexId = deploymentHandle.getExecutionVertexId();
 
 				if (throwable == null) {
 					final ExecutionVertex executionVertex = getExecutionVertex(executionVertexId);
-					executionVertex.getCurrentExecutionAttempt().registerProducedPartitions(logicalSlot.getTaskManagerLocation());
+					final boolean sendScheduleOrUpdateConsumerMessage = deploymentHandle.getDeploymentOption().sendScheduleOrUpdateConsumerMessage();
+					executionVertex
+						.getCurrentExecutionAttempt()
+						.registerProducedPartitions(logicalSlot.getTaskManagerLocation(), sendScheduleOrUpdateConsumerMessage);
 					executionVertex.tryAssignResource(logicalSlot);
 				} else {
 					handleTaskFailure(executionVertexId, throwable);
@@ -388,30 +390,28 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 			});
 	}
 
-	private BiFunction<Object, Throwable, Void> deployOrHandleError(
-			final ExecutionVertexVersion requiredVertexVersion,
-			final ExecutionVertexDeploymentOption executionVertexDeploymentOption) {
+	private BiFunction<Object, Throwable, Void> deployOrHandleError(final DeploymentHandle deploymentHandle) {
+		final ExecutionVertexVersion requiredVertexVersion = deploymentHandle.getExecutionVertexVersion();
 
 		return conditionalFutureHandlerFactory.requireVertexVersion(
 			requiredVertexVersion,
 			(ignored, throwable) -> {
+				final ExecutionVertexID executionVertexId = requiredVertexVersion.getExecutionVertexId();
 				if (throwable == null) {
-					deployTaskSafe(executionVertexDeploymentOption);
+					deployTaskSafe(executionVertexId);
 				} else {
-					final ExecutionVertexID executionVertexId = executionVertexDeploymentOption.getExecutionVertexId();
 					handleTaskFailure(executionVertexId, throwable);
 				}
 				return null;
 			});
 	}
 
-	private void deployTaskSafe(final ExecutionVertexDeploymentOption executionVertexDeploymentOption) {
+	private void deployTaskSafe(final ExecutionVertexID executionVertexId) {
 		try {
-			final DeploymentOption deploymentOption = executionVertexDeploymentOption.getDeploymentOption();
-			final ExecutionVertex executionVertex = getExecutionVertex(executionVertexDeploymentOption.getExecutionVertexId());
-			executionVertexOperations.deploy(executionVertex, deploymentOption);
+			final ExecutionVertex executionVertex = getExecutionVertex(executionVertexId);
+			executionVertexOperations.deploy(executionVertex);
 		} catch (Throwable e) {
-			handleTaskFailure(executionVertexDeploymentOption.getExecutionVertexId(), e);
+			handleTaskFailure(executionVertexId, e);
 		}
 	}
 }

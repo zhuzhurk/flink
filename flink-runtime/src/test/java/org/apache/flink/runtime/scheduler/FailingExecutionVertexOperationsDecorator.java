@@ -43,11 +43,11 @@ public class FailingExecutionVertexOperationsDecorator implements ExecutionVerte
 	}
 
 	@Override
-	public void deploy(final ExecutionVertex executionVertex, final DeploymentOption deploymentOption) throws JobException {
+	public void deploy(final ExecutionVertex executionVertex) throws JobException {
 		if (failDeploy) {
 			throw new RuntimeException("Expected");
 		} else {
-			delegate.deploy(executionVertex, deploymentOption);
+			delegate.deploy(executionVertex);
 		}
 	}
 
