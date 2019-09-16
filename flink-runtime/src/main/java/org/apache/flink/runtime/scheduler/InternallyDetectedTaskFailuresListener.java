@@ -19,37 +19,19 @@
 
 package org.apache.flink.runtime.scheduler;
 
-import org.apache.flink.api.common.JobID;
-import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
-import org.apache.flink.runtime.executiongraph.TaskFailureListener;
+import org.apache.flink.runtime.executiongraph.ExecutionGraph;
+import org.apache.flink.runtime.jobmaster.JobMasterGateway;
 import org.apache.flink.runtime.taskmanager.TaskExecutionState;
 
-import static org.apache.flink.util.Preconditions.checkNotNull;
-
 /**
- * Calls {@link DefaultScheduler#updateTaskExecutionState(TaskExecutionState)} on task failure.
+ * This interface enables subscribing to Task failures that are detected from the JobMaster side
+ * (e.g., from within the {@link ExecutionGraph}).
+ * In contrast, there are also failures that are detected by the TaskManager, which are communicated
+ * via {@link JobMasterGateway#updateTaskExecutionState(TaskExecutionState)}.
  */
-class UpdateTaskExecutionStateInDefaultSchedulerListener implements TaskFailureListener {
+public interface InternallyDetectedTaskFailuresListener {
 
-	private final SchedulerNG defaultScheduler;
+	void notifyFailed(ExecutionAttemptID attemptId, Throwable t);
 
-	private final JobID jobId;
-
-	public UpdateTaskExecutionStateInDefaultSchedulerListener(
-		final SchedulerNG defaultScheduler,
-		final JobID jobId) {
-
-		this.defaultScheduler = checkNotNull(defaultScheduler);
-		this.jobId = checkNotNull(jobId);
-	}
-
-	@Override
-	public void notifyFailed(final ExecutionAttemptID attemptId, final Throwable t) {
-		defaultScheduler.updateTaskExecutionState(new TaskExecutionState(
-			jobId,
-			attemptId,
-			ExecutionState.FAILED,
-			t));
-	}
 }

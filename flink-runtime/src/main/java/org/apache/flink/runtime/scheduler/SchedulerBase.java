@@ -48,7 +48,6 @@ import org.apache.flink.runtime.executiongraph.ExecutionJobVertex;
 import org.apache.flink.runtime.executiongraph.ExecutionVertex;
 import org.apache.flink.runtime.executiongraph.IntermediateResult;
 import org.apache.flink.runtime.executiongraph.JobStatusListener;
-import org.apache.flink.runtime.executiongraph.TaskFailureListener;
 import org.apache.flink.runtime.executiongraph.failover.adapter.DefaultFailoverTopology;
 import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverTopology;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategy;
@@ -254,8 +253,8 @@ public abstract class SchedulerBase implements SchedulerNG {
 		return executionGraph;
 	}
 
-	protected void setTaskFailureListener(TaskFailureListener taskFailureListener) {
-		executionGraph.setTaskFailureListener(taskFailureListener);
+	protected void setTaskFailureListener(InternallyDetectedTaskFailuresListener taskFailureListener) {
+		executionGraph.setInternallyDetectedTaskFailuresListener(taskFailureListener);
 	}
 
 	protected void resetForNewExecution(final Collection<ExecutionVertexID> verticesToDeploy) {
@@ -365,10 +364,7 @@ public abstract class SchedulerBase implements SchedulerNG {
 	}
 
 	@Override
-	public boolean updateTaskExecutionState(final TaskExecutionState taskExecutionState) {
-		mainThreadExecutor.assertRunningInMainThread();
-		return executionGraph.updateState(taskExecutionState);
-	}
+	public abstract boolean updateTaskExecutionState(final TaskExecutionState taskExecutionState);
 
 	@Override
 	public SerializedInputSplit requestNextInputSplit(JobVertexID vertexID, ExecutionAttemptID executionAttempt) throws IOException {

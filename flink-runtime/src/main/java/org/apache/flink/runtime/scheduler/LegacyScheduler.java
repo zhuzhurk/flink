@@ -31,6 +31,7 @@ import org.apache.flink.runtime.jobmaster.slotpool.SlotProvider;
 import org.apache.flink.runtime.metrics.groups.JobManagerJobMetricGroup;
 import org.apache.flink.runtime.rest.handler.legacy.backpressure.BackPressureStatsTracker;
 import org.apache.flink.runtime.shuffle.ShuffleMaster;
+import org.apache.flink.runtime.taskmanager.TaskExecutionState;
 
 import org.slf4j.Logger;
 
@@ -90,5 +91,10 @@ public class LegacyScheduler extends SchedulerBase {
 		catch (Throwable t) {
 			executionGraph.failGlobal(t);
 		}
+	}
+
+	@Override
+	public boolean updateTaskExecutionState(final TaskExecutionState taskExecutionState) {
+		 return getExecutionGraph().updateState(taskExecutionState);
 	}
 }

@@ -67,6 +67,7 @@ import org.apache.flink.runtime.jobgraph.tasks.CheckpointCoordinatorConfiguratio
 import org.apache.flink.runtime.jobmanager.scheduler.CoLocationGroup;
 import org.apache.flink.runtime.jobmaster.slotpool.SlotProvider;
 import org.apache.flink.runtime.query.KvStateLocationRegistry;
+import org.apache.flink.runtime.scheduler.InternallyDetectedTaskFailuresListener;
 import org.apache.flink.runtime.scheduler.adapter.ExecutionGraphToSchedulingTopologyAdapter;
 import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 import org.apache.flink.runtime.scheduler.strategy.SchedulingExecutionVertex;
@@ -261,7 +262,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	private SchedulingTopology schedulingTopology;
 
 	@Nullable
-	private TaskFailureListener taskFailureListener;
+	private InternallyDetectedTaskFailuresListener internallyDetectedTaskFailuresListener;
 
 	// ------ Configuration of the Execution -------
 
@@ -883,10 +884,10 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		return StringifiedAccumulatorResult.stringifyAccumulatorResults(accumulatorMap);
 	}
 
-	public void setTaskFailureListener(final TaskFailureListener taskFailureListener) {
-		checkNotNull(taskFailureListener);
-		checkState(this.taskFailureListener == null, "taskFailureListener can be only set once");
-		this.taskFailureListener = taskFailureListener;
+	public void setInternallyDetectedTaskFailuresListener(final InternallyDetectedTaskFailuresListener internallyDetectedTaskFailuresListener) {
+		checkNotNull(internallyDetectedTaskFailuresListener);
+		checkState(this.internallyDetectedTaskFailuresListener == null, "taskFailureListener can be only set once");
+		this.internallyDetectedTaskFailuresListener = internallyDetectedTaskFailuresListener;
 	}
 
 	// --------------------------------------------------------------------------------------------
@@ -1610,7 +1611,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			case FAILED:
 				// this deserialization is exception-free
 				accumulators = deserializeAccumulators(state);
-				attempt.markFailed(state.getError(userClassLoader), accumulators, state.getIOMetrics());
+				attempt.markFailed(state.getError(userClassLoader), accumulators, state.getIOMetrics(), !isLegacyScheduling());
 				return true;
 
 			default:
@@ -1815,8 +1816,8 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	}
 
 	void notifyTaskFailed(final ExecutionAttemptID attemptId, final Throwable t) {
-		if (taskFailureListener != null) {
-			taskFailureListener.notifyFailed(attemptId, t);
+		if (internallyDetectedTaskFailuresListener != null) {
+			internallyDetectedTaskFailuresListener.notifyFailed(attemptId, t);
 		}
 	}
 

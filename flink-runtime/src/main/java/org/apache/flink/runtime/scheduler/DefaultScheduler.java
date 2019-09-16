@@ -164,7 +164,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 		executionFailureHandler = new ExecutionFailureHandler(failoverStrategyFactory.create(getFailoverTopology()), restartBackoffTimeStrategy);
 		schedulingStrategy = schedulingStrategyFactory.createInstance(this, getSchedulingTopology(), getJobGraph());
 		executionSlotAllocator = new DefaultExecutionSlotAllocator(slotProvider, getInputsLocationsRetriever(), slotRequestTimeout);
-		setTaskFailureListener(new UpdateTaskExecutionStateInDefaultSchedulerListener(this, getJobGraph().getJobID()));
+		setTaskFailureListener(new UpdateSchedulerNgOnInternalTaskFailuresListener(this, getJobGraph().getJobID()));
 		prepareExecutionGraphForScheduling();
 	}
 

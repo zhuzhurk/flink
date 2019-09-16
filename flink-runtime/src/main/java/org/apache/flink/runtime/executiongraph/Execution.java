@@ -1042,17 +1042,17 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	 * @param t The exception that caused the task to fail.
 	 */
 	void markFailed(Throwable t) {
-		if (isLegacyScheduling()) {
-			processFail(t, true);
-		} else {
-			vertex.getExecutionGraph().notifyTaskFailed(getAttemptId(), t);
-		}
+		processFail(t, true);
 	}
 
 	void markFailed(Throwable t, Map<String, Accumulator<?, ?>> userAccumulators, IOMetrics metrics) {
+		markFailed(t, userAccumulators, metrics, false);
+	}
+
+	void markFailed(Throwable t, Map<String, Accumulator<?, ?>> userAccumulators, IOMetrics metrics, boolean fromSchedulerNg) {
 		// skip release of partitions since this is only called if the TM actually sent the FAILED state update
 		// in this case all partitions have already been cleaned up
-		processFail(t, true, userAccumulators, metrics, false);
+		processFail(t, true, userAccumulators, metrics, false, fromSchedulerNg);
 	}
 
 	@VisibleForTesting
@@ -1206,6 +1206,10 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	}
 
 	private boolean processFail(Throwable t, boolean isCallback, Map<String, Accumulator<?, ?>> userAccumulators, IOMetrics metrics, boolean releasePartitions) {
+		return processFail(t, isCallback, userAccumulators, metrics, releasePartitions, false);
+	}
+
+	private boolean processFail(Throwable t, boolean isCallback, Map<String, Accumulator<?, ?>> userAccumulators, IOMetrics metrics, boolean releasePartitions, boolean fromSchedulerNg) {
 		// damn, we failed. This means only that we keep our books and notify our parent JobExecutionVertex
 		// the actual computation on the task manager is cleaned up by the TaskManager that noticed the failure
 
@@ -1233,7 +1237,7 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 				return false;
 			}
 
-			if (!isCallback && !isLegacyScheduling()) {
+			if (!fromSchedulerNg && !isLegacyScheduling()) {
 				vertex.getExecutionGraph().notifyTaskFailed(attemptId, t);
 				return true;
 			} else if (transitionState(current, FAILED, t)) {
