@@ -75,6 +75,7 @@ import org.apache.flink.runtime.rest.handler.legacy.backpressure.BackPressureSta
 import org.apache.flink.runtime.rest.handler.legacy.backpressure.OperatorBackPressureStats;
 import org.apache.flink.runtime.scheduler.adapter.ExecutionGraphToSchedulingTopologyAdapter;
 import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
+import org.apache.flink.runtime.scheduler.strategy.SchedulingTopology;
 import org.apache.flink.runtime.shuffle.ShuffleMaster;
 import org.apache.flink.runtime.state.KeyGroupRange;
 import org.apache.flink.runtime.taskmanager.TaskExecutionState;
@@ -96,7 +97,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
-import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * Base class which can be used to implement {@link SchedulerNG}.
@@ -108,6 +108,12 @@ public abstract class SchedulerBase implements SchedulerNG {
 	private final JobGraph jobGraph;
 
 	private final ExecutionGraph executionGraph;
+
+	private final SchedulingTopology schedulingTopology;
+
+	private final FailoverTopology failoverTopology;
+
+	private final InputsLocationsRetriever inputsLocationsRetriever;
 
 	private final BackPressureStatsTracker backPressureStatsTracker;
 
@@ -130,6 +136,7 @@ public abstract class SchedulerBase implements SchedulerNG {
 	private final BlobWriter blobWriter;
 
 	private final Time slotRequestTimeout;
+
 
 	private ComponentMainThreadExecutor mainThreadExecutor = new ComponentMainThreadExecutor.DummyComponentMainThreadExecutor(
 		"SchedulerBase is not initialized with proper main thread executor. " +
@@ -179,6 +186,9 @@ public abstract class SchedulerBase implements SchedulerNG {
 		this.slotRequestTimeout = checkNotNull(slotRequestTimeout);
 
 		this.executionGraph = createAndRestoreExecutionGraph(jobManagerJobMetricGroup, checkNotNull(shuffleMaster), checkNotNull(partitionTracker));
+		this.schedulingTopology = new ExecutionGraphToSchedulingTopologyAdapter(executionGraph);
+		this.failoverTopology = new DefaultFailoverTopology(executionGraph);
+		this.inputsLocationsRetriever = new ExecutionGraphToInputsLocationsRetrieverAdapter(executionGraph);
 	}
 
 	private ExecutionGraph createAndRestoreExecutionGraph(
@@ -303,16 +313,15 @@ public abstract class SchedulerBase implements SchedulerNG {
 	}
 
 	protected FailoverTopology getFailoverTopology() {
-		return new DefaultFailoverTopology(executionGraph);
+		return failoverTopology;
 	}
 
-	protected ExecutionGraphToSchedulingTopologyAdapter getSchedulingTopology() {
-		return new ExecutionGraphToSchedulingTopologyAdapter(executionGraph);
+	protected SchedulingTopology getSchedulingTopology() {
+		return schedulingTopology;
 	}
 
 	protected InputsLocationsRetriever getInputsLocationsRetriever() {
-		checkState(executionGraph != null);
-		return new ExecutionGraphToInputsLocationsRetrieverAdapter(executionGraph);
+		return inputsLocationsRetriever;
 	}
 
 	protected void prepareExecutionGraphForScheduling() {
