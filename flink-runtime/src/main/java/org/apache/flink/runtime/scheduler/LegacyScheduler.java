@@ -95,6 +95,6 @@ public class LegacyScheduler extends SchedulerBase {
 
 	@Override
 	public boolean updateTaskExecutionState(final TaskExecutionState taskExecutionState) {
-		 return getExecutionGraph().updateState(taskExecutionState);
+		return getExecutionGraph().updateState(taskExecutionState);
 	}
 }
