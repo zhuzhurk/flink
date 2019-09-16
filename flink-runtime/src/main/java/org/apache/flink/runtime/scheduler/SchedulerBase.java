@@ -277,7 +277,7 @@ public abstract class SchedulerBase implements SchedulerNG {
 		}
 	}
 
-	protected void setTaskFailureListener(InternallyDetectedTaskFailuresListener taskFailureListener) {
+	protected final void setTaskFailureListener(InternallyDetectedTaskFailuresListener taskFailureListener) {
 		executionGraph.setInternallyDetectedTaskFailuresListener(taskFailureListener);
 	}
 
@@ -324,7 +324,7 @@ public abstract class SchedulerBase implements SchedulerNG {
 		return inputsLocationsRetriever;
 	}
 
-	protected void prepareExecutionGraphForScheduling() {
+	protected final void prepareExecutionGraphForScheduling() {
 		executionGraph.setLegacyScheduling(false);
 		executionGraph.transitionToRunning();
 	}

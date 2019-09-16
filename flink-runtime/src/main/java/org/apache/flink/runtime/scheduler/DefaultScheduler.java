@@ -73,25 +73,15 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 
 	private final ClassLoader userCodeLoader;
 
-	private final SchedulingStrategyFactory schedulingStrategyFactory;
-
-	private final SlotProvider slotProvider;
-
-	private final Time slotRequestTimeout;
-
-	private final RestartBackoffTimeStrategy restartBackoffTimeStrategy;
-
 	private final ConditionalFutureHandlerFactory conditionalFutureHandlerFactory;
 
-	private ExecutionSlotAllocator executionSlotAllocator;
+	private final ExecutionSlotAllocator executionSlotAllocator;
 
-	private ExecutionFailureHandler executionFailureHandler;
-
-	private final FailoverStrategy.Factory failoverStrategyFactory;
+	private final ExecutionFailureHandler executionFailureHandler;
 
 	private final ScheduledExecutor delayExecutor;
 
-	private SchedulingStrategy schedulingStrategy;
+	private final SchedulingStrategy schedulingStrategy;
 
 	private final ExecutionVertexVersioner executionVertexVersioner;
 
@@ -138,16 +128,16 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 			shuffleMaster,
 			partitionTracker);
 
-		this.restartBackoffTimeStrategy = checkNotNull(restartBackoffTimeStrategy);
-		this.slotRequestTimeout = checkNotNull(slotRequestTimeout);
-		this.slotProvider = checkNotNull(slotProvider);
 		this.delayExecutor = checkNotNull(delayExecutor);
 		this.userCodeLoader = checkNotNull(userCodeLoader);
-		this.schedulingStrategyFactory = checkNotNull(schedulingStrategyFactory);
-		this.failoverStrategyFactory = checkNotNull(failoverStrategyFactory);
 		this.executionVertexOperations = checkNotNull(executionVertexOperations);
 		this.executionVertexVersioner = checkNotNull(executionVertexVersioner);
+
 		this.conditionalFutureHandlerFactory = new ConditionalFutureHandlerFactory(executionVertexVersioner);
+		this.executionFailureHandler = new ExecutionFailureHandler(failoverStrategyFactory.create(getFailoverTopology()), restartBackoffTimeStrategy);
+		this.schedulingStrategy = schedulingStrategyFactory.createInstance(this, getSchedulingTopology(), getJobGraph());
+		this.executionSlotAllocator = new DefaultExecutionSlotAllocator(slotProvider, getInputsLocationsRetriever(), slotRequestTimeout);
+		setTaskFailureListener(new UpdateSchedulerNgOnInternalTaskFailuresListener(this, getJobGraph().getJobID()));
 	}
 
 	// ------------------------------------------------------------------------
@@ -156,16 +146,8 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 
 	@Override
 	protected void startSchedulingInternal() {
-		initializeScheduling();
-		schedulingStrategy.startScheduling();
-	}
-
-	private void initializeScheduling() {
-		executionFailureHandler = new ExecutionFailureHandler(failoverStrategyFactory.create(getFailoverTopology()), restartBackoffTimeStrategy);
-		schedulingStrategy = schedulingStrategyFactory.createInstance(this, getSchedulingTopology(), getJobGraph());
-		executionSlotAllocator = new DefaultExecutionSlotAllocator(slotProvider, getInputsLocationsRetriever(), slotRequestTimeout);
-		setTaskFailureListener(new UpdateSchedulerNgOnInternalTaskFailuresListener(this, getJobGraph().getJobID()));
 		prepareExecutionGraphForScheduling();
+		schedulingStrategy.startScheduling();
 	}
 
 	@Override
