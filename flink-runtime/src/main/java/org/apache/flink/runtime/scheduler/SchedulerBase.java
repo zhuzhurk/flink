@@ -229,6 +229,25 @@ public abstract class SchedulerBase implements SchedulerNG {
 	}
 
 	/**
+	 * @deprecated Direct access to the execution graph by scheduler implementations is discouraged
+	 * because currently the execution graph has various features and responsibilities that a
+	 * scheduler should not be concerned about. The following specialized abstractions to the
+	 * execution graph and accessors should be preferred over direct access:
+	 * <ul>
+	 *     <li>{@link #getSchedulingTopology()}
+	 *     <li>{@link #getFailoverTopology()}
+	 *     <li>{@link #getInputsLocationsRetriever()}
+	 *     <li>{@link #getExecutionVertex(ExecutionVertexID)}
+	 *     <li>{@link #getExecutionVertexId(ExecutionAttemptID)}
+	 * </ul>
+	 * Currently, only {@link LegacyScheduler} requires direct access to the execution graph.
+	 */
+	@Deprecated
+	protected ExecutionGraph getExecutionGraph() {
+		return executionGraph;
+	}
+
+	/**
 	 * Tries to restore the given {@link ExecutionGraph} from the provided {@link SavepointRestoreSettings}.
 	 *
 	 * @param executionGraphToRestore {@link ExecutionGraph} which is supposed to be restored
@@ -246,11 +265,6 @@ public abstract class SchedulerBase implements SchedulerNG {
 					userCodeLoader);
 			}
 		}
-	}
-
-	@Deprecated
-	protected ExecutionGraph getExecutionGraph() {
-		return executionGraph;
 	}
 
 	protected void setTaskFailureListener(InternallyDetectedTaskFailuresListener taskFailureListener) {
