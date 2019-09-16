@@ -155,7 +155,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 	// ------------------------------------------------------------------------
 
 	@Override
-	public void startSchedulingInternal() {
+	protected void startSchedulingInternal() {
 		initializeScheduling();
 		schedulingStrategy.startScheduling();
 	}
