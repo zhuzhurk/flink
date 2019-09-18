@@ -56,6 +56,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -336,7 +337,8 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 	}
 
 	private BiFunction<Void, Throwable, Void> deployAll(final Collection<DeploymentHandle> deploymentHandles) {
-		return (aVoid, ignored) -> {
+		return (ignored, throwable) -> {
+			propagateIfNonNull(throwable);
 			for (final DeploymentHandle deploymentHandle : deploymentHandles) {
 				final SlotExecutionVertexAssignment slotExecutionVertexAssignment = deploymentHandle.getSlotExecutionVertexAssignment();
 				final CompletableFuture<LogicalSlot> slotAssigned = slotExecutionVertexAssignment.getLogicalSlotFuture();
@@ -347,6 +349,12 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 			}
 			return null;
 		};
+	}
+
+	private static void propagateIfNonNull(final Throwable throwable) {
+		if (throwable != null) {
+			throw new CompletionException(throwable);
+		}
 	}
 
 	private BiFunction<LogicalSlot, Throwable, Void> assignResourceOrHandleError(final DeploymentHandle deploymentHandle) {
