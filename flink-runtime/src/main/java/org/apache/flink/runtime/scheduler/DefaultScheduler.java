@@ -71,9 +71,9 @@ import static org.apache.flink.util.Preconditions.checkState;
  */
 public class DefaultScheduler extends SchedulerBase implements SchedulerOperations {
 
-	private final ClassLoader userCodeLoader;
+	private final Logger log;
 
-	private final ConditionalFutureHandlerFactory conditionalFutureHandlerFactory;
+	private final ClassLoader userCodeLoader;
 
 	private final ExecutionSlotAllocator executionSlotAllocator;
 
@@ -128,12 +128,13 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 			shuffleMaster,
 			partitionTracker);
 
+		this.log = log;
+
 		this.delayExecutor = checkNotNull(delayExecutor);
 		this.userCodeLoader = checkNotNull(userCodeLoader);
 		this.executionVertexOperations = checkNotNull(executionVertexOperations);
 		this.executionVertexVersioner = checkNotNull(executionVertexVersioner);
 
-		this.conditionalFutureHandlerFactory = new ConditionalFutureHandlerFactory(executionVertexVersioner);
 		this.executionFailureHandler = new ExecutionFailureHandler(failoverStrategyFactory.create(getFailoverTopology()), restartBackoffTimeStrategy);
 		this.schedulingStrategy = schedulingStrategyFactory.createInstance(this, getSchedulingTopology(), getJobGraph());
 		this.executionSlotAllocator = new DefaultExecutionSlotAllocator(slotProvider, getInputsLocationsRetriever(), slotRequestTimeout);
@@ -322,7 +323,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 			assignAllResources(deploymentHandles).handle(deployAll(deploymentHandles)));
 	}
 
-	private FutureUtils.ConjunctFuture<Void> assignAllResources(final Collection<DeploymentHandle> deploymentHandles) {
+	private CompletableFuture<Void> assignAllResources(final Collection<DeploymentHandle> deploymentHandles) {
 		final List<CompletableFuture<Void>> slotAssignedFutures = new ArrayList<>();
 		for (DeploymentHandle deploymentHandle : deploymentHandles) {
 			final CompletableFuture<Void> slotAssigned = deploymentHandle
@@ -350,42 +351,54 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 
 	private BiFunction<LogicalSlot, Throwable, Void> assignResourceOrHandleError(final DeploymentHandle deploymentHandle) {
 		final ExecutionVertexVersion requiredVertexVersion = deploymentHandle.getRequiredVertexVersion();
+		final ExecutionVertexID executionVertexId = deploymentHandle.getExecutionVertexId();
 
-		return conditionalFutureHandlerFactory.requireVertexVersion(
-			requiredVertexVersion,
-			(logicalSlot, throwable) -> {
-
-				final ExecutionVertexID executionVertexId = deploymentHandle.getExecutionVertexId();
-
-				if (throwable == null) {
-					final ExecutionVertex executionVertex = getExecutionVertex(executionVertexId);
-					final boolean sendScheduleOrUpdateConsumerMessage = deploymentHandle.getDeploymentOption().sendScheduleOrUpdateConsumerMessage();
-					executionVertex
-						.getCurrentExecutionAttempt()
-						.registerProducedPartitions(logicalSlot.getTaskManagerLocation(), sendScheduleOrUpdateConsumerMessage);
-					executionVertex.tryAssignResource(logicalSlot);
-				} else {
-					handleTaskFailure(executionVertexId, throwable);
-				}
-
+		return (logicalSlot, throwable) -> {
+			if (executionVertexVersioner.isModified(requiredVertexVersion)) {
+				log.debug("Refusing to assign slot to execution vertex {} because this deployment was " +
+					"superseded by another deployment", executionVertexId);
+				stopDeployment(deploymentHandle);
 				return null;
-			});
+			}
+
+			if (throwable == null) {
+				final ExecutionVertex executionVertex = getExecutionVertex(executionVertexId);
+				final boolean sendScheduleOrUpdateConsumerMessage = deploymentHandle.getDeploymentOption().sendScheduleOrUpdateConsumerMessage();
+				executionVertex
+					.getCurrentExecutionAttempt()
+					.registerProducedPartitions(logicalSlot.getTaskManagerLocation(), sendScheduleOrUpdateConsumerMessage);
+				executionVertex.tryAssignResource(logicalSlot);
+			} else {
+				handleTaskFailure(executionVertexId, throwable);
+			}
+			return null;
+		};
 	}
 
 	private BiFunction<Object, Throwable, Void> deployOrHandleError(final DeploymentHandle deploymentHandle) {
 		final ExecutionVertexVersion requiredVertexVersion = deploymentHandle.getRequiredVertexVersion();
+		final ExecutionVertexID executionVertexId = requiredVertexVersion.getExecutionVertexId();
 
-		return conditionalFutureHandlerFactory.requireVertexVersion(
-			requiredVertexVersion,
-			(ignored, throwable) -> {
-				final ExecutionVertexID executionVertexId = requiredVertexVersion.getExecutionVertexId();
-				if (throwable == null) {
-					deployTaskSafe(executionVertexId);
-				} else {
-					handleTaskFailure(executionVertexId, throwable);
-				}
+		return (ignored, throwable) -> {
+			if (executionVertexVersioner.isModified(requiredVertexVersion)) {
+				log.debug("Refusing to deploy execution vertex {} because this deployment was " +
+					"superseded by another deployment", executionVertexId);
+				stopDeployment(deploymentHandle);
 				return null;
-			});
+			}
+
+			if (throwable == null) {
+				deployTaskSafe(executionVertexId);
+			} else {
+				handleTaskFailure(executionVertexId, throwable);
+			}
+			return null;
+		};
+	}
+
+	private void stopDeployment(final DeploymentHandle deploymentHandle) {
+		cancelExecutionVertex(deploymentHandle.getExecutionVertexId());
+		deploymentHandle.getLogicalSlot().releaseSlot(null);
 	}
 
 	private void deployTaskSafe(final ExecutionVertexID executionVertexId) {

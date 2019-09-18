@@ -19,6 +19,7 @@
 
 package org.apache.flink.runtime.scheduler;
 
+import org.apache.flink.runtime.jobmaster.LogicalSlot;
 import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 import org.apache.flink.util.Preconditions;
 
@@ -54,5 +55,11 @@ class DeploymentHandle {
 
 	public SlotExecutionVertexAssignment getSlotExecutionVertexAssignment() {
 		return slotExecutionVertexAssignment;
+	}
+
+	public LogicalSlot getLogicalSlot() {
+		final LogicalSlot logicalSlot = slotExecutionVertexAssignment.getLogicalSlotFuture().getNow(null);
+		Preconditions.checkState(logicalSlot != null, "method can only be called after slot is assigned");
+		return logicalSlot;
 	}
 }
