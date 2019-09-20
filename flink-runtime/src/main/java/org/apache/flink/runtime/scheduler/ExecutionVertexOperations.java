@@ -21,15 +21,22 @@ package org.apache.flink.runtime.scheduler;
 
 import org.apache.flink.runtime.JobException;
 import org.apache.flink.runtime.executiongraph.ExecutionVertex;
+import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 /**
  * Operations on the ExecutionVertex.
  */
 interface ExecutionVertexOperations {
 
-	void deploy(ExecutionVertex executionVertex) throws JobException;
+	void deploy(ExecutionVertexID executionVertexID) throws JobException;
 
-	CompletableFuture<?> cancel(ExecutionVertex executionVertex);
+	CompletableFuture<?> cancel(ExecutionVertexID executionVertexID);
+
+	interface Factory {
+
+		ExecutionVertexOperations create(Function<ExecutionVertexID, ExecutionVertex> idToVertexMapper);
+	}
 }

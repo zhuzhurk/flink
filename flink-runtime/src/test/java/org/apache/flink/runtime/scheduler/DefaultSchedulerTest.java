@@ -95,7 +95,7 @@ public class DefaultSchedulerTest extends TestLogger {
 
 	private TestRestartBackoffTimeStrategy testRestartBackoffTimeStrategy;
 
-	private FailingExecutionVertexOperationsDecorator testExecutionVertexOperations;
+	private FailingExecutionVertexOperationsDecorator.Factory testExecutionVertexOperationsFactory;
 
 	private SimpleSlotProvider slotProvider;
 
@@ -112,7 +112,8 @@ public class DefaultSchedulerTest extends TestLogger {
 
 		testRestartBackoffTimeStrategy = new TestRestartBackoffTimeStrategy(true, 0);
 
-		testExecutionVertexOperations = new FailingExecutionVertexOperationsDecorator(new DefaultExecutionVertexOperations());
+		testExecutionVertexOperationsFactory = new FailingExecutionVertexOperationsDecorator.Factory(
+			new DefaultExecutionVertexOperations.Factory());
 
 		slotProvider = new SimpleSlotProvider(TEST_JOB_ID, 12, testTaskManagerGateway);
 
@@ -148,9 +149,14 @@ public class DefaultSchedulerTest extends TestLogger {
 		final JobGraph jobGraph = singleNonParallelJobVertexJobGraph();
 		final JobVertex onlyJobVertex = getOnlyJobVertex(jobGraph);
 
+		final DefaultScheduler scheduler = createScheduler(jobGraph);
+
+		final FailingExecutionVertexOperationsDecorator testExecutionVertexOperations =
+			(FailingExecutionVertexOperationsDecorator) scheduler.getExecutionVertexOperations();
+
 		testExecutionVertexOperations.enableFailDeploy();
 
-		createSchedulerAndStartScheduling(jobGraph);
+		startScheduling(scheduler);
 
 		testExecutionVertexOperations.disableFailDeploy();
 		taskRestartExecutor.triggerScheduledTasks();
@@ -231,6 +237,8 @@ public class DefaultSchedulerTest extends TestLogger {
 		final JobGraph jobGraph = singleNonParallelJobVertexJobGraph();
 
 		final DefaultScheduler scheduler = createSchedulerAndStartScheduling(jobGraph);
+		final FailingExecutionVertexOperationsDecorator testExecutionVertexOperations =
+			(FailingExecutionVertexOperationsDecorator) scheduler.getExecutionVertexOperations();
 
 		final ArchivedExecutionVertex onlyExecutionVertex = Iterables.getOnlyElement(scheduler.requestJob().getAllExecutionVertices());
 		final ExecutionAttemptID attemptId = onlyExecutionVertex.getCurrentExecutionAttempt().getAttemptId();
@@ -290,40 +298,40 @@ public class DefaultSchedulerTest extends TestLogger {
 	}
 
 	private DefaultScheduler createSchedulerAndStartScheduling(final JobGraph jobGraph) {
+		final DefaultScheduler scheduler = createScheduler(jobGraph);
+		startScheduling(scheduler);
+		return scheduler;
+	}
+
+	private DefaultScheduler createScheduler(final JobGraph jobGraph) {
 		try {
-			final DefaultScheduler scheduler = createScheduler(jobGraph);
-			startScheduling(scheduler);
-			return scheduler;
+			return new DefaultScheduler(
+				log,
+				jobGraph,
+				VoidBackPressureStatsTracker.INSTANCE,
+				executor,
+				configuration,
+				slotProvider,
+				scheduledExecutorService,
+				taskRestartExecutor,
+				ClassLoader.getSystemClassLoader(),
+				new StandaloneCheckpointRecoveryFactory(),
+				Time.seconds(300),
+				VoidBlobWriter.getInstance(),
+				UnregisteredMetricGroups.createUnregisteredJobManagerJobMetricGroup(),
+				Time.seconds(300),
+				NettyShuffleMaster.INSTANCE,
+				NoOpPartitionTracker.INSTANCE,
+				jobGraph.getScheduleMode() == ScheduleMode.LAZY_FROM_SOURCES ?
+					new LazyFromSourcesSchedulingStrategy.Factory() :
+					new EagerSchedulingStrategy.Factory(),
+				new RestartPipelinedRegionStrategy.Factory(),
+				testRestartBackoffTimeStrategy,
+				testExecutionVertexOperationsFactory,
+				executionVertexVersioner);
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
-	}
-
-	private DefaultScheduler createScheduler(final JobGraph jobGraph) throws Exception {
-		return new DefaultScheduler(
-			log,
-			jobGraph,
-			VoidBackPressureStatsTracker.INSTANCE,
-			executor,
-			configuration,
-			slotProvider,
-			scheduledExecutorService,
-			taskRestartExecutor,
-			ClassLoader.getSystemClassLoader(),
-			new StandaloneCheckpointRecoveryFactory(),
-			Time.seconds(300),
-			VoidBlobWriter.getInstance(),
-			UnregisteredMetricGroups.createUnregisteredJobManagerJobMetricGroup(),
-			Time.seconds(300),
-			NettyShuffleMaster.INSTANCE,
-			NoOpPartitionTracker.INSTANCE,
-			jobGraph.getScheduleMode() == ScheduleMode.LAZY_FROM_SOURCES ?
-				new LazyFromSourcesSchedulingStrategy.Factory() :
-				new EagerSchedulingStrategy.Factory(),
-			new RestartPipelinedRegionStrategy.Factory(),
-			testRestartBackoffTimeStrategy,
-			testExecutionVertexOperations,
-			executionVertexVersioner);
 	}
 
 	private void startScheduling(final SchedulerNG scheduler) {

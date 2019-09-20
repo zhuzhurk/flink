@@ -89,7 +89,7 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
 			schedulingStrategyFactory,
 			new RestartPipelinedRegionStrategy.Factory(),
 			restartBackoffTimeStrategy,
-			new DefaultExecutionVertexOperations(),
+			new DefaultExecutionVertexOperations.Factory(),
 			new ExecutionVertexVersioner());
 	}
 

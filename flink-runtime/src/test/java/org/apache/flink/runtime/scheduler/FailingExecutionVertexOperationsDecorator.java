@@ -22,8 +22,10 @@ package org.apache.flink.runtime.scheduler;
 import org.apache.flink.runtime.JobException;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.executiongraph.ExecutionVertex;
+import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -43,20 +45,20 @@ public class FailingExecutionVertexOperationsDecorator implements ExecutionVerte
 	}
 
 	@Override
-	public void deploy(final ExecutionVertex executionVertex) throws JobException {
+	public void deploy(final ExecutionVertexID executionVertexID) throws JobException {
 		if (failDeploy) {
 			throw new RuntimeException("Expected");
 		} else {
-			delegate.deploy(executionVertex);
+			delegate.deploy(executionVertexID);
 		}
 	}
 
 	@Override
-	public CompletableFuture<?> cancel(final ExecutionVertex executionVertex) {
+	public CompletableFuture<?> cancel(final ExecutionVertexID executionVertexID) {
 		if (failCancel) {
 			return FutureUtils.completedExceptionally(new RuntimeException("Expected"));
 		} else {
-			return delegate.cancel(executionVertex);
+			return delegate.cancel(executionVertexID);
 		}
 	}
 
@@ -74,5 +76,19 @@ public class FailingExecutionVertexOperationsDecorator implements ExecutionVerte
 
 	public void disableFailCancel() {
 		failCancel = false;
+	}
+
+	static class Factory implements ExecutionVertexOperations.Factory {
+
+		private final ExecutionVertexOperations.Factory delegateFactory;
+
+		Factory(ExecutionVertexOperations.Factory delegateFactory) {
+			this.delegateFactory = delegateFactory;
+		}
+
+		@Override
+		public ExecutionVertexOperations create(final Function<ExecutionVertexID, ExecutionVertex> idToVertexMapper) {
+			return new FailingExecutionVertexOperationsDecorator(delegateFactory.create(idToVertexMapper));
+		}
 	}
 }

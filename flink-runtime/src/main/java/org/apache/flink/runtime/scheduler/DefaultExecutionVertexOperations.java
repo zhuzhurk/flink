@@ -21,18 +21,36 @@ package org.apache.flink.runtime.scheduler;
 
 import org.apache.flink.runtime.JobException;
 import org.apache.flink.runtime.executiongraph.ExecutionVertex;
+import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+
+import static org.apache.flink.util.Preconditions.checkNotNull;
 
 class DefaultExecutionVertexOperations implements ExecutionVertexOperations {
 
-	@Override
-	public void deploy(final ExecutionVertex executionVertex) throws JobException {
-		executionVertex.deploy();
+	private final Function<ExecutionVertexID, ExecutionVertex> idToVertexMapper;
+
+	DefaultExecutionVertexOperations(final Function<ExecutionVertexID, ExecutionVertex> idToVertexMapper) {
+		this.idToVertexMapper = checkNotNull(idToVertexMapper);
 	}
 
 	@Override
-	public CompletableFuture<?> cancel(final ExecutionVertex executionVertex) {
-		return executionVertex.cancel();
+	public void deploy(final ExecutionVertexID executionVertexID) throws JobException {
+		idToVertexMapper.apply(executionVertexID).deploy();
+	}
+
+	@Override
+	public CompletableFuture<?> cancel(final ExecutionVertexID executionVertexID) {
+		return idToVertexMapper.apply(executionVertexID).cancel();
+	}
+
+	static class Factory implements ExecutionVertexOperations.Factory {
+
+		@Override
+		public ExecutionVertexOperations create(final Function<ExecutionVertexID, ExecutionVertex> idToVertexMapper) {
+			return new DefaultExecutionVertexOperations(idToVertexMapper);
+		}
 	}
 }

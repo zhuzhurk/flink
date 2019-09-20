@@ -19,6 +19,7 @@
 
 package org.apache.flink.runtime.scheduler;
 
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.blob.BlobWriter;
@@ -108,7 +109,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 		final SchedulingStrategyFactory schedulingStrategyFactory,
 		final FailoverStrategy.Factory failoverStrategyFactory,
 		final RestartBackoffTimeStrategy restartBackoffTimeStrategy,
-		final ExecutionVertexOperations executionVertexOperations,
+		final ExecutionVertexOperations.Factory executionVertexOperationsFactory,
 		final ExecutionVertexVersioner executionVertexVersioner) throws Exception {
 
 		super(
@@ -133,7 +134,10 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 
 		this.delayExecutor = checkNotNull(delayExecutor);
 		this.userCodeLoader = checkNotNull(userCodeLoader);
-		this.executionVertexOperations = checkNotNull(executionVertexOperations);
+
+		checkNotNull(executionVertexOperationsFactory);
+		this.executionVertexOperations = executionVertexOperationsFactory.create(this::getExecutionVertex);
+
 		this.executionVertexVersioner = checkNotNull(executionVertexVersioner);
 
 		this.executionFailureHandler = new ExecutionFailureHandler(failoverStrategyFactory.create(getFailoverTopology()), restartBackoffTimeStrategy);
@@ -223,7 +227,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 	}
 
 	private CompletableFuture<?> cancelExecutionVertex(final ExecutionVertexID executionVertexId) {
-		return executionVertexOperations.cancel(getExecutionVertex(executionVertexId));
+		return executionVertexOperations.cancel(executionVertexId);
 	}
 
 	@Override
@@ -411,10 +415,14 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 
 	private void deployTaskSafe(final ExecutionVertexID executionVertexId) {
 		try {
-			final ExecutionVertex executionVertex = getExecutionVertex(executionVertexId);
-			executionVertexOperations.deploy(executionVertex);
+			executionVertexOperations.deploy(executionVertexId);
 		} catch (Throwable e) {
 			handleTaskFailure(executionVertexId, e);
 		}
+	}
+
+	@VisibleForTesting
+	ExecutionVertexOperations getExecutionVertexOperations() {
+		return executionVertexOperations;
 	}
 }
