@@ -168,8 +168,7 @@ public class DefaultFailoverTopologyTest extends TestLogger {
 
 	private static boolean compareVertexInternalProperties(ExecutionVertex originalVertex, FailoverVertex adaptedVertex) {
 		return originalVertex.getJobvertexId().equals(adaptedVertex.getExecutionVertexID().getJobVertexId()) &&
-			originalVertex.getParallelSubtaskIndex() == adaptedVertex.getExecutionVertexID().getSubtaskIndex() &&
-			originalVertex.getTaskNameWithSubtaskIndex().equals(adaptedVertex.getExecutionVertexName());
+			originalVertex.getParallelSubtaskIndex() == adaptedVertex.getExecutionVertexID().getSubtaskIndex();
 	}
 
 	private static void assertEdgesEquals(
