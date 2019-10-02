@@ -47,6 +47,7 @@ import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.execution.SuppressRestartsException;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategy;
 import org.apache.flink.runtime.executiongraph.failover.RestartAllStrategy;
+import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverTopology;
 import org.apache.flink.runtime.executiongraph.failover.flip1.ResultPartitionAvailabilityChecker;
 import org.apache.flink.runtime.executiongraph.failover.flip1.partitionrelease.NotReleasingPartitionReleaseStrategy;
 import org.apache.flink.runtime.executiongraph.failover.flip1.partitionrelease.PartitionReleaseStrategy;
@@ -257,6 +258,8 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	private PartitionReleaseStrategy partitionReleaseStrategy;
 
 	private SchedulingTopology<?, ?> schedulingTopology;
+
+	private FailoverTopology failoverTopology;
 
 	@Nullable
 	private InternalTaskFailuresListener internalTaskFailuresListener;
@@ -535,6 +538,10 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 	public boolean isQueuedSchedulingAllowed() {
 		return this.allowQueuedScheduling;
+	}
+
+	public FailoverTopology getFailoverTopology() {
+		return failoverTopology;
 	}
 
 	public ScheduleMode getScheduleMode() {
@@ -942,12 +949,14 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			newExecJobVertices.add(ejv);
 		}
 
+		// the topology assigning should happen before notifying new vertices to failoverStrategy
+		ExecutionGraphToSchedulingTopologyAdapter topology = new ExecutionGraphToSchedulingTopologyAdapter(this);
+		schedulingTopology = topology;
+		failoverTopology = topology;
+
 		failoverStrategy.notifyNewVertices(newExecJobVertices);
 
-		schedulingTopology = new ExecutionGraphToSchedulingTopologyAdapter(this);
-		partitionReleaseStrategy = partitionReleaseStrategyFactory.createInstance(
-			schedulingTopology,
-			new ExecutionGraphToSchedulingTopologyAdapter(this));
+		partitionReleaseStrategy = partitionReleaseStrategyFactory.createInstance(schedulingTopology, failoverTopology);
 	}
 
 	public boolean isLegacyScheduling() {

@@ -185,8 +185,11 @@ public abstract class SchedulerBase implements SchedulerNG {
 		this.slotRequestTimeout = checkNotNull(slotRequestTimeout);
 
 		this.executionGraph = createAndRestoreExecutionGraph(jobManagerJobMetricGroup, checkNotNull(shuffleMaster), checkNotNull(partitionTracker));
-		this.schedulingTopology = new ExecutionGraphToSchedulingTopologyAdapter(executionGraph);
-		this.failoverTopology = new ExecutionGraphToSchedulingTopologyAdapter(executionGraph);
+
+		final ExecutionGraphToSchedulingTopologyAdapter topology = new ExecutionGraphToSchedulingTopologyAdapter(executionGraph);
+		this.schedulingTopology = topology;
+		this.failoverTopology = topology;
+
 		this.inputsLocationsRetriever = new ExecutionGraphToInputsLocationsRetrieverAdapter(executionGraph);
 	}
 
