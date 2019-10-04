@@ -27,6 +27,7 @@ import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 import org.apache.flink.runtime.scheduler.strategy.SchedulingExecutionVertex;
 import org.apache.flink.runtime.scheduler.strategy.SchedulingResultPartition;
 import org.apache.flink.runtime.scheduler.strategy.SchedulingTopology;
+import org.apache.flink.util.IterableUtils;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -47,7 +48,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  */
 public class RegionPartitionReleaseStrategy implements PartitionReleaseStrategy {
 
-	private final SchedulingTopology schedulingTopology;
+	private final SchedulingTopology<?, ?> schedulingTopology;
 
 	private final Map<PipelinedRegion, PipelinedRegionConsumedBlockingPartitions> consumedBlockingPartitionsByRegion = new IdentityHashMap<>();
 
@@ -90,7 +91,7 @@ public class RegionPartitionReleaseStrategy implements PartitionReleaseStrategy 
 			.getExecutionVertexIds()
 			.stream()
 			.map(schedulingTopology::getVertexOrThrow)
-			.flatMap(schedulingExecutionVertex -> schedulingExecutionVertex.getConsumedResultPartitions().stream())
+			.flatMap(vertex -> IterableUtils.toStream(vertex.getConsumedResults()))
 			.collect(Collectors.toSet());
 
 		return filterResultPartitionsOutsideOfRegion(allConsumedPartitionsInRegion, pipelinedRegion);
@@ -101,9 +102,8 @@ public class RegionPartitionReleaseStrategy implements PartitionReleaseStrategy 
 			final PipelinedRegion pipelinedRegion) {
 
 		final Set<IntermediateResultPartitionID> result = new HashSet<>();
-		for (final SchedulingResultPartition maybeOutsidePartition : resultPartitions) {
-			final SchedulingExecutionVertex producer = maybeOutsidePartition.getProducer();
-			if (!pipelinedRegion.contains(producer.getId())) {
+		for (final SchedulingResultPartition<?, ?> maybeOutsidePartition : resultPartitions) {
+			if (!pipelinedRegion.contains(maybeOutsidePartition.getProducer().getId())) {
 				result.add(maybeOutsidePartition.getId());
 			}
 		}
@@ -158,10 +158,7 @@ public class RegionPartitionReleaseStrategy implements PartitionReleaseStrategy 
 	}
 
 	private boolean areConsumerRegionsFinished(final IntermediateResultPartitionID resultPartitionId) {
-		final SchedulingResultPartition resultPartition = schedulingTopology.getResultPartitionOrThrow(resultPartitionId);
-		final Collection<SchedulingExecutionVertex> consumers = resultPartition.getConsumers();
-		return consumers
-			.stream()
+		return IterableUtils.toStream(schedulingTopology.getResultPartitionOrThrow(resultPartitionId).getConsumers())
 			.map(SchedulingExecutionVertex::getId)
 			.allMatch(this::isRegionOfVertexFinished);
 	}

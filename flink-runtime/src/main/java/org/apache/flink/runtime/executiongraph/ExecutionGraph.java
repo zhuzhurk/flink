@@ -70,8 +70,6 @@ import org.apache.flink.runtime.query.KvStateLocationRegistry;
 import org.apache.flink.runtime.scheduler.InternalTaskFailuresListener;
 import org.apache.flink.runtime.scheduler.adapter.ExecutionGraphToSchedulingTopologyAdapter;
 import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
-import org.apache.flink.runtime.scheduler.strategy.SchedulingExecutionVertex;
-import org.apache.flink.runtime.scheduler.strategy.SchedulingResultPartition;
 import org.apache.flink.runtime.scheduler.strategy.SchedulingTopology;
 import org.apache.flink.runtime.shuffle.NettyShuffleMaster;
 import org.apache.flink.runtime.shuffle.ShuffleMaster;
@@ -259,7 +257,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 
 	private PartitionReleaseStrategy partitionReleaseStrategy;
 
-	private SchedulingTopology schedulingTopology;
+	private SchedulingTopology<?, ?> schedulingTopology;
 
 	@Nullable
 	private InternalTaskFailuresListener internalTaskFailuresListener;
@@ -1644,9 +1642,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	}
 
 	ResultPartitionID createResultPartitionId(final IntermediateResultPartitionID resultPartitionId) {
-		final SchedulingResultPartition schedulingResultPartition = schedulingTopology.getResultPartitionOrThrow(resultPartitionId);
-		final SchedulingExecutionVertex producer = schedulingResultPartition.getProducer();
-		final ExecutionVertexID producerId = producer.getId();
+		final ExecutionVertexID producerId = schedulingTopology.getResultPartitionOrThrow(resultPartitionId).getProducer().getId();
 		final JobVertexID jobVertexId = producerId.getJobVertexId();
 		final ExecutionJobVertex jobVertex = getJobVertex(jobVertexId);
 		checkNotNull(jobVertex, "Unknown job vertex %s", jobVertexId);

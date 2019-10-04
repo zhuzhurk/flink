@@ -22,6 +22,7 @@ import org.apache.flink.api.common.InputDependencyConstraint;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSet;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
+import org.apache.flink.util.IterableUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,7 +47,7 @@ public class InputDependencyConstraintChecker {
 
 	public boolean check(final SchedulingExecutionVertex schedulingExecutionVertex) {
 		final InputDependencyConstraint inputConstraint = schedulingExecutionVertex.getInputDependencyConstraint();
-		if (schedulingExecutionVertex.getConsumedResultPartitions().isEmpty() || ALL.equals(inputConstraint)) {
+		if (!schedulingExecutionVertex.getConsumedResults().iterator().hasNext() || ALL.equals(inputConstraint)) {
 			return checkAll(schedulingExecutionVertex);
 		} else if (ANY.equals(inputConstraint)) {
 			return checkAny(schedulingExecutionVertex);
@@ -55,7 +56,7 @@ public class InputDependencyConstraintChecker {
 		}
 	}
 
-	List<SchedulingResultPartition> markSchedulingResultPartitionFinished(SchedulingResultPartition srp) {
+	List<SchedulingResultPartition<?, ?>> markSchedulingResultPartitionFinished(SchedulingResultPartition srp) {
 		return intermediateDataSetManager.markSchedulingResultPartitionFinished(srp);
 	}
 
@@ -67,20 +68,18 @@ public class InputDependencyConstraintChecker {
 		intermediateDataSetManager.addSchedulingResultPartition(srp);
 	}
 
-	private boolean checkAll(final SchedulingExecutionVertex schedulingExecutionVertex) {
-		return schedulingExecutionVertex.getConsumedResultPartitions()
-			.stream()
+	private boolean checkAll(final SchedulingExecutionVertex<?, ?> schedulingExecutionVertex) {
+		return IterableUtils.toStream(schedulingExecutionVertex.getConsumedResults())
 			.allMatch(this::partitionConsumable);
 	}
 
-	private boolean checkAny(final SchedulingExecutionVertex schedulingExecutionVertex) {
-		return schedulingExecutionVertex.getConsumedResultPartitions()
-			.stream()
+	private boolean checkAny(final SchedulingExecutionVertex<?, ?> schedulingExecutionVertex) {
+		return IterableUtils.toStream(schedulingExecutionVertex.getConsumedResults())
 			.anyMatch(this::partitionConsumable);
 	}
 
 	private boolean partitionConsumable(SchedulingResultPartition partition) {
-		if (BLOCKING.equals(partition.getPartitionType())) {
+		if (BLOCKING.equals(partition.getResultType())) {
 			return intermediateDataSetManager.allPartitionsFinished(partition);
 		} else {
 			SchedulingResultPartition.ResultPartitionState state = partition.getState();
@@ -92,7 +91,7 @@ public class InputDependencyConstraintChecker {
 
 		private final Map<IntermediateDataSetID, SchedulingIntermediateDataSet> intermediateDataSets = new HashMap<>();
 
-		List<SchedulingResultPartition> markSchedulingResultPartitionFinished(SchedulingResultPartition srp) {
+		List<SchedulingResultPartition<?, ?>> markSchedulingResultPartitionFinished(SchedulingResultPartition<?, ?> srp) {
 			SchedulingIntermediateDataSet intermediateDataSet = getSchedulingIntermediateDataSet(srp.getResultId());
 			if (intermediateDataSet.markPartitionFinished(srp.getId())) {
 				return intermediateDataSet.getSchedulingResultPartitions();
@@ -100,7 +99,7 @@ public class InputDependencyConstraintChecker {
 			return Collections.emptyList();
 		}
 
-		void resetSchedulingResultPartition(SchedulingResultPartition srp) {
+		void resetSchedulingResultPartition(SchedulingResultPartition<?, ?> srp) {
 			SchedulingIntermediateDataSet sid = getSchedulingIntermediateDataSet(srp.getResultId());
 			sid.resetPartition(srp.getId());
 		}
@@ -146,7 +145,7 @@ public class InputDependencyConstraintChecker {
 	 */
 	private static class SchedulingIntermediateDataSet {
 
-		private final List<SchedulingResultPartition> partitions;
+		private final List<SchedulingResultPartition<?, ?>> partitions;
 
 		private final Set<IntermediateResultPartitionID> producingPartitionIds;
 
@@ -168,12 +167,12 @@ public class InputDependencyConstraintChecker {
 			return producingPartitionIds.isEmpty();
 		}
 
-		void addSchedulingResultPartition(SchedulingResultPartition partition) {
+		void addSchedulingResultPartition(SchedulingResultPartition<?, ?> partition) {
 			partitions.add(partition);
 			producingPartitionIds.add(partition.getId());
 		}
 
-		List<SchedulingResultPartition> getSchedulingResultPartitions() {
+		List<SchedulingResultPartition<?, ?>> getSchedulingResultPartitions() {
 			return Collections.unmodifiableList(partitions);
 		}
 	}

@@ -24,8 +24,8 @@ import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.scheduler.DeploymentOption;
 import org.apache.flink.runtime.scheduler.ExecutionVertexDeploymentOption;
 import org.apache.flink.runtime.scheduler.SchedulerOperations;
+import org.apache.flink.util.IterableUtils;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -46,7 +46,7 @@ public class LazyFromSourcesSchedulingStrategy implements SchedulingStrategy {
 
 	private final SchedulerOperations schedulerOperations;
 
-	private final SchedulingTopology schedulingTopology;
+	private final SchedulingTopology<?, ?> schedulingTopology;
 
 	private final Map<ExecutionVertexID, DeploymentOption> deploymentOptions;
 
@@ -67,10 +67,10 @@ public class LazyFromSourcesSchedulingStrategy implements SchedulingStrategy {
 		final DeploymentOption updateOption = new DeploymentOption(true);
 		final DeploymentOption nonUpdateOption = new DeploymentOption(false);
 
-		for (SchedulingExecutionVertex schedulingVertex : schedulingTopology.getVertices()) {
+		for (SchedulingExecutionVertex<?, ?> schedulingVertex : schedulingTopology.getVertices()) {
 			DeploymentOption option = nonUpdateOption;
-			for (SchedulingResultPartition srp : schedulingVertex.getProducedResultPartitions()) {
-				if (srp.getPartitionType().isPipelined()) {
+			for (SchedulingResultPartition srp : schedulingVertex.getProducedResults()) {
+				if (srp.getResultType().isPipelined()) {
 					option = updateOption;
 				}
 				inputConstraintChecker.addSchedulingResultPartition(srp);
@@ -87,7 +87,7 @@ public class LazyFromSourcesSchedulingStrategy implements SchedulingStrategy {
 		verticesToRestart
 			.stream()
 			.map(schedulingTopology::getVertexOrThrow)
-			.flatMap(vertex -> vertex.getProducedResultPartitions().stream())
+			.flatMap(vertex -> IterableUtils.toStream(vertex.getProducedResults()))
 			.forEach(inputConstraintChecker::resetSchedulingResultPartition);
 
 		allocateSlotsAndDeployExecutionVertexIds(verticesToRestart);
@@ -99,11 +99,10 @@ public class LazyFromSourcesSchedulingStrategy implements SchedulingStrategy {
 			return;
 		}
 
-		final Set<SchedulingExecutionVertex> verticesToSchedule = schedulingTopology.getVertexOrThrow(executionVertexId)
-			.getProducedResultPartitions()
-			.stream()
+		final Set<SchedulingExecutionVertex<?, ?>> verticesToSchedule = IterableUtils
+			.toStream(schedulingTopology.getVertexOrThrow(executionVertexId).getProducedResults())
 			.flatMap(partition -> inputConstraintChecker.markSchedulingResultPartitionFinished(partition).stream())
-			.flatMap(partition -> partition.getConsumers().stream())
+			.flatMap(partition -> IterableUtils.toStream(partition.getConsumers()))
 			.collect(Collectors.toSet());
 
 		allocateSlotsAndDeployExecutionVertices(verticesToSchedule);
@@ -114,12 +113,12 @@ public class LazyFromSourcesSchedulingStrategy implements SchedulingStrategy {
 		final SchedulingResultPartition resultPartition = schedulingTopology
 			.getResultPartitionOrThrow(resultPartitionId.getPartitionId());
 
-		if (!resultPartition.getPartitionType().isPipelined()) {
+		if (!resultPartition.getResultType().isPipelined()) {
 			return;
 		}
 
 		final SchedulingExecutionVertex producerVertex = schedulingTopology.getVertexOrThrow(executionVertexId);
-		if (!producerVertex.getProducedResultPartitions().contains(resultPartition)) {
+		if (!IterableUtils.contains(producerVertex.getProducedResults(), resultPartition)) {
 			throw new IllegalStateException("partition " + resultPartitionId
 					+ " is not the produced partition of " + executionVertexId);
 		}
@@ -135,10 +134,9 @@ public class LazyFromSourcesSchedulingStrategy implements SchedulingStrategy {
 				.collect(Collectors.toList()));
 	}
 
-	private void allocateSlotsAndDeployExecutionVertices(final Collection<SchedulingExecutionVertex> schedulingExecutionVertices) {
+	private void allocateSlotsAndDeployExecutionVertices(final Iterable<SchedulingExecutionVertex<?, ?>> vertices) {
 		schedulerOperations.allocateSlotsAndDeploy(
-			schedulingExecutionVertices
-				.stream()
+			IterableUtils.toStream(vertices)
 				.filter(isInputConstraintSatisfied().and(IS_IN_CREATED_EXECUTION_STATE))
 				.map(SchedulingExecutionVertex::getId)
 				.map(executionVertexID -> new ExecutionVertexDeploymentOption(

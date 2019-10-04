@@ -41,7 +41,7 @@ public class EagerSchedulingStrategy implements SchedulingStrategy {
 
 	private final SchedulerOperations schedulerOperations;
 
-	private final SchedulingTopology schedulingTopology;
+	private final SchedulingTopology<?, ?> schedulingTopology;
 
 	private final DeploymentOption deploymentOption = new DeploymentOption(false);
 
