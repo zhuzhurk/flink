@@ -35,8 +35,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Default implementation of {@link SchedulingResultPartition} and {@link FailoverResultPartition}.
  */
-class DefaultResultPartition implements SchedulingResultPartition<DefaultExecutionVertex, DefaultResultPartition>,
-		FailoverResultPartition<DefaultExecutionVertex, DefaultResultPartition> {
+class DefaultResultPartition implements SchedulingResultPartition, FailoverResultPartition {
 
 	private final IntermediateResultPartitionID resultPartitionId;
 

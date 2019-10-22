@@ -45,7 +45,7 @@ public class InputDependencyConstraintChecker {
 	private final SchedulingIntermediateDataSetManager intermediateDataSetManager =
 		new SchedulingIntermediateDataSetManager();
 
-	public boolean check(final SchedulingExecutionVertex<?, ?> schedulingExecutionVertex) {
+	public boolean check(final SchedulingExecutionVertex schedulingExecutionVertex) {
 		final InputDependencyConstraint inputConstraint = schedulingExecutionVertex.getInputDependencyConstraint();
 		if (!schedulingExecutionVertex.getConsumedResults().iterator().hasNext() || ALL.equals(inputConstraint)) {
 			return checkAll(schedulingExecutionVertex);
@@ -56,29 +56,29 @@ public class InputDependencyConstraintChecker {
 		}
 	}
 
-	List<SchedulingResultPartition<?, ?>> markSchedulingResultPartitionFinished(SchedulingResultPartition<?, ?> srp) {
+	List<SchedulingResultPartition> markSchedulingResultPartitionFinished(SchedulingResultPartition srp) {
 		return intermediateDataSetManager.markSchedulingResultPartitionFinished(srp);
 	}
 
-	void resetSchedulingResultPartition(SchedulingResultPartition<?, ?> srp) {
+	void resetSchedulingResultPartition(SchedulingResultPartition srp) {
 		intermediateDataSetManager.resetSchedulingResultPartition(srp);
 	}
 
-	void addSchedulingResultPartition(SchedulingResultPartition<?, ?> srp) {
+	void addSchedulingResultPartition(SchedulingResultPartition srp) {
 		intermediateDataSetManager.addSchedulingResultPartition(srp);
 	}
 
-	private boolean checkAll(final SchedulingExecutionVertex<?, ?> schedulingExecutionVertex) {
+	private boolean checkAll(final SchedulingExecutionVertex schedulingExecutionVertex) {
 		return IterableUtils.toStream(schedulingExecutionVertex.getConsumedResults())
 			.allMatch(this::partitionConsumable);
 	}
 
-	private boolean checkAny(final SchedulingExecutionVertex<?, ?> schedulingExecutionVertex) {
+	private boolean checkAny(final SchedulingExecutionVertex schedulingExecutionVertex) {
 		return IterableUtils.toStream(schedulingExecutionVertex.getConsumedResults())
 			.anyMatch(this::partitionConsumable);
 	}
 
-	private boolean partitionConsumable(SchedulingResultPartition<?, ?> partition) {
+	private boolean partitionConsumable(SchedulingResultPartition partition) {
 		if (BLOCKING.equals(partition.getResultType())) {
 			return intermediateDataSetManager.allPartitionsFinished(partition);
 		} else {
@@ -91,7 +91,7 @@ public class InputDependencyConstraintChecker {
 
 		private final Map<IntermediateDataSetID, SchedulingIntermediateDataSet> intermediateDataSets = new HashMap<>();
 
-		List<SchedulingResultPartition<?, ?>> markSchedulingResultPartitionFinished(SchedulingResultPartition<?, ?> srp) {
+		List<SchedulingResultPartition> markSchedulingResultPartitionFinished(SchedulingResultPartition srp) {
 			SchedulingIntermediateDataSet intermediateDataSet = getSchedulingIntermediateDataSet(srp.getResultId());
 			if (intermediateDataSet.markPartitionFinished(srp.getId())) {
 				return intermediateDataSet.getSchedulingResultPartitions();
@@ -99,17 +99,17 @@ public class InputDependencyConstraintChecker {
 			return Collections.emptyList();
 		}
 
-		void resetSchedulingResultPartition(SchedulingResultPartition<?, ?> srp) {
+		void resetSchedulingResultPartition(SchedulingResultPartition srp) {
 			SchedulingIntermediateDataSet sid = getSchedulingIntermediateDataSet(srp.getResultId());
 			sid.resetPartition(srp.getId());
 		}
 
-		void addSchedulingResultPartition(SchedulingResultPartition<?, ?> srp) {
+		void addSchedulingResultPartition(SchedulingResultPartition srp) {
 			SchedulingIntermediateDataSet sid = getOrCreateSchedulingIntermediateDataSetIfAbsent(srp.getResultId());
 			sid.addSchedulingResultPartition(srp);
 		}
 
-		boolean allPartitionsFinished(SchedulingResultPartition<?, ?> srp) {
+		boolean allPartitionsFinished(SchedulingResultPartition srp) {
 			SchedulingIntermediateDataSet sid = getSchedulingIntermediateDataSet(srp.getResultId());
 			return sid.allPartitionsFinished();
 		}
@@ -145,7 +145,7 @@ public class InputDependencyConstraintChecker {
 	 */
 	private static class SchedulingIntermediateDataSet {
 
-		private final List<SchedulingResultPartition<?, ?>> partitions;
+		private final List<SchedulingResultPartition> partitions;
 
 		private final Set<IntermediateResultPartitionID> producingPartitionIds;
 
@@ -167,12 +167,12 @@ public class InputDependencyConstraintChecker {
 			return producingPartitionIds.isEmpty();
 		}
 
-		void addSchedulingResultPartition(SchedulingResultPartition<?, ?> partition) {
+		void addSchedulingResultPartition(SchedulingResultPartition partition) {
 			partitions.add(partition);
 			producingPartitionIds.add(partition.getId());
 		}
 
-		List<SchedulingResultPartition<?, ?>> getSchedulingResultPartitions() {
+		List<SchedulingResultPartition> getSchedulingResultPartitions() {
 			return Collections.unmodifiableList(partitions);
 		}
 	}

@@ -25,6 +25,6 @@ import org.apache.flink.runtime.topology.Vertex;
 /**
  * Represents an {@link ExecutionVertex}.
  */
-public interface FailoverVertex<V extends FailoverVertex<V, R>, R extends FailoverResultPartition<V, R>>
-	extends Vertex<ExecutionVertexID, IntermediateResultPartitionID, V, R> {
+public interface FailoverVertex
+	extends Vertex<ExecutionVertexID, IntermediateResultPartitionID, FailoverVertex, FailoverResultPartition> {
 }

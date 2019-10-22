@@ -24,6 +24,6 @@ import org.apache.flink.runtime.topology.Topology;
 /**
  * Represents a topology for failover.
  */
-public interface FailoverTopology<V extends FailoverVertex<V, R>, R extends FailoverResultPartition<V, R>>
-	extends Topology<ExecutionVertexID, IntermediateResultPartitionID, V, R> {
+public interface FailoverTopology
+	extends Topology<ExecutionVertexID, IntermediateResultPartitionID, FailoverVertex, FailoverResultPartition> {
 }

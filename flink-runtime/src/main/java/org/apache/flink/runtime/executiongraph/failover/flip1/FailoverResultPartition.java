@@ -25,6 +25,6 @@ import org.apache.flink.runtime.topology.Result;
 /**
  * Represents a {@link IntermediateResultPartition} produced by a {@link FailoverVertex}.
  */
-public interface FailoverResultPartition<V extends FailoverVertex<V, R>, R extends FailoverResultPartition<V, R>>
-	extends Result<ExecutionVertexID, IntermediateResultPartitionID, V, R> {
+public interface FailoverResultPartition
+	extends Result<ExecutionVertexID, IntermediateResultPartitionID, FailoverVertex, FailoverResultPartition> {
 }

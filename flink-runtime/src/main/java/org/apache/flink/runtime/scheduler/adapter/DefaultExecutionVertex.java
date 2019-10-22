@@ -33,8 +33,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Default implementation of {@link SchedulingExecutionVertex} and {@link FailoverVertex}.
  */
-class DefaultExecutionVertex implements SchedulingExecutionVertex<DefaultExecutionVertex, DefaultResultPartition>,
-		FailoverVertex<DefaultExecutionVertex, DefaultResultPartition> {
+class DefaultExecutionVertex implements SchedulingExecutionVertex, FailoverVertex {
 
 	private final ExecutionVertexID executionVertexId;
 
