@@ -29,6 +29,7 @@ import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.executiongraph.utils.SimpleAckingTaskManagerGateway;
+import org.apache.flink.runtime.instance.SlotSharingGroupId;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobmanager.scheduler.DummyScheduledUnit;
 import org.apache.flink.runtime.jobmanager.scheduler.ScheduledUnit;
@@ -110,6 +111,49 @@ public class SlotPoolImplTest extends TestLogger {
 		taskManagerLocation = new LocalTaskManagerLocation();
 		taskManagerGateway = new SimpleAckingTaskManagerGateway();
 		resourceManagerGateway = new TestingResourceManagerGateway();
+	}
+
+	@Test
+	public void testAllocatingMultipleSingleTaskSlotFromSharedSlot() throws Exception {
+		try (SlotPoolImpl slotPool = createSlotPoolImpl()) {
+			setupSlotPool(slotPool, resourceManagerGateway, mainThreadExecutor);
+			Scheduler scheduler = setupScheduler(slotPool, mainThreadExecutor);
+			slotPool.registerTaskManager(taskManagerLocation.getResourceID());
+
+			// make the physical slot ready for shared slot
+			final ResourceProfile sharedSlotResources = new ResourceProfile(10.0, 100);
+			final SlotOffer slotOffer = new SlotOffer(
+				new AllocationID(),
+				0,
+				sharedSlotResources);
+			slotPool.offerSlot(taskManagerLocation, taskManagerGateway, slotOffer);
+
+			final SlotSharingGroupId slotSharingGroupId = new SlotSharingGroupId();
+
+			// allocate 1st task slot in shared slot
+			final ResourceProfile taskResources1 = new ResourceProfile(10.0, 10);
+			CompletableFuture<LogicalSlot> allocatedSlot1 = scheduler.allocateSlot(
+				new SlotRequestId(),
+				new ScheduledUnit(null, new JobVertexID(), slotSharingGroupId, null),
+				SlotProfile.noLocality(taskResources1),
+				true,
+				timeout);
+
+			assertTrue("slot request should be fulfilled", allocatedSlot1.isDone());
+			assertEquals(taskManagerLocation, allocatedSlot1.get().getTaskManagerLocation());
+
+			// allocate 2nd task slot in shared slot
+			final ResourceProfile taskResources2 = new ResourceProfile(10.0, 10);
+			CompletableFuture<LogicalSlot> allocatedSlot2 = scheduler.allocateSlot(
+				new SlotRequestId(),
+				new ScheduledUnit(null, new JobVertexID(), slotSharingGroupId, null),
+				SlotProfile.noLocality(taskResources2),
+				true,
+				timeout);
+
+			assertTrue("slot request should be fulfilled", allocatedSlot2.isDone());
+			assertEquals(taskManagerLocation, allocatedSlot2.get().getTaskManagerLocation());
+		}
 	}
 
 	@Test
