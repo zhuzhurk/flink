@@ -805,10 +805,22 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 	boolean checkInputDependencyConstraints() {
 		if (getInputDependencyConstraint() == InputDependencyConstraint.ANY) {
 			// InputDependencyConstraint == ANY
-			return IntStream.range(0, inputEdges.length).anyMatch(this::isInputConsumable);
+//			return IntStream.range(0, inputEdges.length).anyMatch(this::isInputConsumable);
+			for (int i = 0; i < inputEdges.length; i++) {
+				if (isInputConsumable(i)) {
+					return true;
+				}
+			}
+			return false;
 		} else {
 			// InputDependencyConstraint == ALL
-			return IntStream.range(0, inputEdges.length).allMatch(this::isInputConsumable);
+//			return IntStream.range(0, inputEdges.length).allMatch(this::isInputConsumable);
+			for (int i = 0; i < inputEdges.length; i++) {
+				if (!isInputConsumable(i)) {
+					return false;
+				}
+			}
+			return true;
 		}
 	}
 
@@ -821,8 +833,14 @@ public class ExecutionVertex implements AccessExecutionVertex, Archiveable<Archi
 	 * @return whether the input is consumable
 	 */
 	boolean isInputConsumable(int inputNumber) {
-		return Arrays.stream(inputEdges[inputNumber]).map(ExecutionEdge::getSource).anyMatch(
-				IntermediateResultPartition::isConsumable);
+//		return Arrays.stream(inputEdges[inputNumber]).map(ExecutionEdge::getSource).anyMatch(
+//				IntermediateResultPartition::isConsumable);
+		for (ExecutionEdge edge : inputEdges[inputNumber]) {
+			if (edge.getSource().isConsumable()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// --------------------------------------------------------------------------------------------
