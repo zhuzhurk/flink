@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.api.common.InputDependencyConstraint;
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
@@ -31,8 +32,10 @@ import org.apache.flink.runtime.jobgraph.JobStatus;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobmaster.slotpool.SlotProvider;
+import org.apache.flink.runtime.taskmanager.TaskExecutionState;
 import org.apache.flink.util.TestLogger;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -106,7 +109,6 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 		eg.start(mainThreadExecutor);
 		eg.scheduleForExecution();
 
-
 		// Inputs constraint not satisfied on init
 		assertFalse(ev31.checkInputDependencyConstraints());
 
@@ -119,9 +121,7 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 		// Inputs constraint not satisfied after failover
 		ev11.fail(new Exception());
 
-
 		waitUntilJobRestarted(eg);
-
 
 		assertFalse(ev31.checkInputDependencyConstraints());
 
@@ -146,7 +146,6 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 		eg.start(mainThreadExecutor);
 		eg.scheduleForExecution();
 
-
 		// Inputs constraint not satisfied on init
 		assertFalse(ev31.checkInputDependencyConstraints());
 
@@ -163,7 +162,6 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 
 		// Inputs constraint not satisfied after failover
 		ev11.fail(new Exception());
-
 
 		waitUntilJobRestarted(eg);
 
@@ -188,12 +186,21 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 	private static ExecutionGraph createExecutionGraph(
 			List<JobVertex> orderedVertices,
 			InputDependencyConstraint inputDependencyConstraint) throws Exception {
+
+		return createExecutionGraph(orderedVertices, inputDependencyConstraint, 20);
+	}
+
+	private static ExecutionGraph createExecutionGraph(
+			List<JobVertex> orderedVertices,
+			InputDependencyConstraint inputDependencyConstraint,
+			int numSlots) throws Exception {
+
 		for (JobVertex vertex : orderedVertices) {
 			vertex.setInputDependencyConstraint(inputDependencyConstraint);
 		}
 
 		final JobGraph jobGraph = new JobGraph(orderedVertices.toArray(new JobVertex[0]));
-		final SlotProvider slotProvider = new SimpleSlotProvider(jobGraph.getJobID(), 20);
+		final SlotProvider slotProvider = new SimpleSlotProvider(jobGraph.getJobID(), numSlots);
 
 		return TestingExecutionGraphBuilder
 			.newBuilder()
@@ -218,5 +225,47 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 		}
 
 		waitUntilJobStatus(eg, JobStatus.RUNNING, 2000L);
+	}
+
+	@Test
+	@Ignore
+	public void testInputConstraintALLPerf() throws Exception {
+		final JobVertex v1 = new JobVertex("vertex1");
+		final JobVertex v2 = new JobVertex("vertex2");
+		final JobVertex v3 = new JobVertex("vertex3");
+		v1.setParallelism(1000);
+		v2.setParallelism(1000);
+		v3.setParallelism(1000);
+		v1.setInvokableClass(AbstractInvokable.class);
+		v2.setInvokableClass(AbstractInvokable.class);
+		v3.setInvokableClass(AbstractInvokable.class);
+		v2.connectNewDataSetAsInput(v1, DistributionPattern.ALL_TO_ALL, ResultPartitionType.BLOCKING);
+		v2.connectNewDataSetAsInput(v3, DistributionPattern.ALL_TO_ALL, ResultPartitionType.BLOCKING);
+
+		final ExecutionGraph eg = createExecutionGraph(Arrays.asList(v1, v2, v3), InputDependencyConstraint.ALL, 3000);
+		final JobID jobID = eg.getJobID();
+
+		eg.start(mainThreadExecutor);
+		eg.scheduleForExecution();
+
+		final ExecutionVertex[] ev1s = eg.getJobVertex(v1.getID()).getTaskVertices();
+		for (int i = 0; i < 999; i++) {
+			eg.updateState(
+				new TaskExecutionState(
+					jobID,
+					ev1s[i].getCurrentExecutionAttempt().getAttemptId(),
+					ExecutionState.FINISHED));
+		}
+
+		final long startMillis = System.nanoTime() / 1000_000;
+
+		eg.updateState(
+			new TaskExecutionState(
+				jobID,
+				ev1s[999].getCurrentExecutionAttempt().getAttemptId(),
+				ExecutionState.FINISHED));
+
+		final long endMillis = System.nanoTime() / 1000_000;
+		System.out.println("Time elapsed (millis): " + (endMillis - startMillis));
 	}
 }
