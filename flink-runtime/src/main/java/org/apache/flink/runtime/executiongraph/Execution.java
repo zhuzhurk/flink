@@ -41,6 +41,7 @@ import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.instance.SlotSharingGroupId;
 import org.apache.flink.runtime.io.network.partition.JobMasterPartitionTracker;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
+import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
 import org.apache.flink.runtime.jobmanager.scheduler.CoLocationConstraint;
@@ -857,6 +858,43 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 	}
 
 	void scheduleOrUpdateConsumers(List<List<ExecutionEdge>> allConsumers) {
+		scheduleConsumers(allConsumers);
+		updateConsumers(allConsumers);
+	}
+
+	void updateConsumers(List<List<ExecutionEdge>> allConsumers) {
+		assertRunningInJobMasterMainThread();
+
+		final int numConsumers = allConsumers.size();
+		if (numConsumers > 1) {
+			fail(new IllegalStateException("Currently, only a single consumer group per partition is supported."));
+		} else if (numConsumers == 0) {
+			return;
+		}
+
+		for (ExecutionEdge edge : allConsumers.get(0)) {
+			final ExecutionVertex consumerVertex = edge.getTarget();
+			final Execution consumer = consumerVertex.getCurrentExecutionAttempt();
+			final ExecutionState consumerState = consumer.getState();
+
+			// ----------------------------------------------------------------
+			// Consumer is running => send update message now
+			// Consumer is deploying => cache the partition info which would be
+			// sent after switching to running
+			// ----------------------------------------------------------------
+			if (consumerState == DEPLOYING || consumerState == RUNNING) {
+				final PartitionInfo partitionInfo = createPartitionInfo(edge);
+
+				if (consumerState == DEPLOYING) {
+					consumerVertex.cachePartitionInfo(partitionInfo);
+				} else {
+					consumer.sendUpdatePartitionInfoRpcCall(Collections.singleton(partitionInfo));
+				}
+			}
+		}
+	}
+
+	void scheduleConsumers(List<List<ExecutionEdge>> allConsumers) {
 		assertRunningInJobMasterMainThread();
 
 		final int numConsumers = allConsumers.size();
@@ -882,22 +920,8 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 				// O(N) complexity introduced by input constraint check for InputDependencyConstraint.ANY,
 				// as we do not want the default scheduling performance to be affected.
 				if (consumerVertex.getInputDependencyConstraint() == InputDependencyConstraint.ANY ||
-						consumerVertex.checkInputDependencyConstraints()) {
+					consumerVertex.checkInputDependencyConstraints()) {
 					scheduleConsumer(consumerVertex);
-				}
-			}
-			// ----------------------------------------------------------------
-			// Consumer is running => send update message now
-			// Consumer is deploying => cache the partition info which would be
-			// sent after switching to running
-			// ----------------------------------------------------------------
-			else if (consumerState == DEPLOYING || consumerState == RUNNING) {
-				final PartitionInfo partitionInfo = createPartitionInfo(edge);
-
-				if (consumerState == DEPLOYING) {
-					consumerVertex.cachePartitionInfo(partitionInfo);
-				} else {
-					consumer.sendUpdatePartitionInfoRpcCall(Collections.singleton(partitionInfo));
 				}
 			}
 		}
@@ -1049,11 +1073,21 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 						for (IntermediateResultPartition finishedPartition
 								: getVertex().finishAllBlockingPartitions()) {
 
-							IntermediateResultPartition[] allPartitions = finishedPartition
-									.getIntermediateResult().getPartitions();
+							final DistributionPattern distributionPattern = finishedPartition.getDistributionPattern();
 
+							IntermediateResultPartition[] allPartitions = finishedPartition
+								.getIntermediateResult()
+								.getPartitions();
 							for (IntermediateResultPartition partition : allPartitions) {
-								scheduleOrUpdateConsumers(partition.getConsumers());
+								updateConsumers(partition.getConsumers());
+							}
+
+							if (distributionPattern == DistributionPattern.ALL_TO_ALL) {
+								scheduleConsumers(finishedPartition.getConsumers());
+							} else {
+								for (IntermediateResultPartition partition : allPartitions) {
+									scheduleConsumers(partition.getConsumers());
+								}
 							}
 						}
 

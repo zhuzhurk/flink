@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
 
 import java.util.ArrayList;
@@ -67,6 +68,10 @@ public class IntermediateResultPartition {
 
 	public ResultPartitionType getResultType() {
 		return totalResult.getResultType();
+	}
+
+	public DistributionPattern getDistributionPattern() {
+		return totalResult.getDistributionPattern();
 	}
 
 	public List<List<ExecutionEdge>> getConsumers() {

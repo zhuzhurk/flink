@@ -38,6 +38,7 @@ import org.apache.flink.runtime.blob.PermanentBlobKey;
 import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.execution.ExecutionState;
+import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSet;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.JobEdge;
@@ -68,6 +69,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.apache.flink.util.Preconditions.checkArgument;
 
 /**
  * An {@code ExecutionJobVertex} is part of the {@link ExecutionGraph}, and the peer
@@ -216,11 +219,16 @@ public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable
 		for (int i = 0; i < jobVertex.getProducedDataSets().size(); i++) {
 			final IntermediateDataSet result = jobVertex.getProducedDataSets().get(i);
 
+			final DistributionPattern distributionPattern = result.getConsumers().size() == 0 ?
+				DistributionPattern.POINTWISE :
+				result.getConsumers().get(0).getDistributionPattern();
+
 			this.producedDataSets[i] = new IntermediateResult(
-					result.getId(),
-					this,
-					numTaskVertices,
-					result.getResultType());
+				result.getId(),
+				this,
+				numTaskVertices,
+				result.getResultType(),
+				distributionPattern);
 		}
 
 		// create all task vertices
@@ -304,7 +312,7 @@ public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable
 			maxParallelism = KeyGroupRangeAssignment.UPPER_BOUND_MAX_PARALLELISM;
 		}
 
-		Preconditions.checkArgument(maxParallelism > 0
+		checkArgument(maxParallelism > 0
 						&& maxParallelism <= KeyGroupRangeAssignment.UPPER_BOUND_MAX_PARALLELISM,
 				"Overriding max parallelism is not in valid bounds (1..%s), found: %s",
 				KeyGroupRangeAssignment.UPPER_BOUND_MAX_PARALLELISM, maxParallelism);
