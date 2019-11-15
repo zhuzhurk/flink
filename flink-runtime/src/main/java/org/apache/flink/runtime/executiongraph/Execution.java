@@ -73,6 +73,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -903,6 +904,63 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 		}
 	}
 
+	void maybeScheduleConsumers(Set<ExecutionVertex> allConsumerVertices) {
+		assertRunningInJobMasterMainThread();
+
+		for (ExecutionVertex consumerVertex : allConsumerVertices) {
+			final Execution consumer = consumerVertex.getCurrentExecutionAttempt();
+			final ExecutionState consumerState = consumer.getState();
+
+			// ----------------------------------------------------------------
+			// Consumer is created => try to schedule it and the partition info
+			// is known during deployment
+			// ----------------------------------------------------------------
+			if (consumerState == CREATED) {
+				// Schedule the consumer vertex if its inputs constraint is satisfied, otherwise skip the scheduling.
+				// A shortcut of input constraint check is added for InputDependencyConstraint.ANY since
+				// at least one of the consumer vertex's inputs is consumable here. This is to avoid the
+				// O(N) complexity introduced by input constraint check for InputDependencyConstraint.ANY,
+				// as we do not want the default scheduling performance to be affected.
+				if (consumerVertex.getInputDependencyConstraint() == InputDependencyConstraint.ANY ||
+					consumerVertex.checkInputDependencyConstraints()) {
+					scheduleConsumer(consumerVertex);
+				}
+			}
+		}
+	}
+
+	void maybeUpdateConsumers(List<List<ExecutionEdge>> allConsumers) {
+		assertRunningInJobMasterMainThread();
+
+		final int numConsumers = allConsumers.size();
+		if (numConsumers > 1) {
+			fail(new IllegalStateException("Currently, only a single consumer group per partition is supported."));
+		} else if (numConsumers == 0) {
+			return;
+		}
+
+		for (ExecutionEdge edge : allConsumers.get(0)) {
+			final ExecutionVertex consumerVertex = edge.getTarget();
+			final Execution consumer = consumerVertex.getCurrentExecutionAttempt();
+			final ExecutionState consumerState = consumer.getState();
+
+			// ----------------------------------------------------------------
+			// Consumer is running => send update message now
+			// Consumer is deploying => cache the partition info which would be
+			// sent after switching to running
+			// ----------------------------------------------------------------
+			if (consumerState == DEPLOYING || consumerState == RUNNING) {
+				final PartitionInfo partitionInfo = createPartitionInfo(edge);
+
+				if (consumerState == DEPLOYING) {
+					consumerVertex.cachePartitionInfo(partitionInfo);
+				} else {
+					consumer.sendUpdatePartitionInfoRpcCall(Collections.singleton(partitionInfo));
+				}
+			}
+		}
+	}
+
 	private static PartitionInfo createPartitionInfo(ExecutionEdge executionEdge) {
 		IntermediateDataSetID intermediateDataSetID = executionEdge.getSource().getIntermediateResult().getId();
 		ShuffleDescriptor shuffleDescriptor = getConsumedPartitionShuffleDescriptor(executionEdge, false);
@@ -1046,6 +1104,8 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 
 				if (transitionState(current, FINISHED)) {
 					try {
+						Set<ExecutionVertex> consumerVerticesToSchedule = new HashSet<>();
+
 						for (IntermediateResultPartition finishedPartition
 								: getVertex().finishAllBlockingPartitions()) {
 
@@ -1053,9 +1113,16 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 									.getIntermediateResult().getPartitions();
 
 							for (IntermediateResultPartition partition : allPartitions) {
-								scheduleOrUpdateConsumers(partition.getConsumers());
+								maybeUpdateConsumers(partition.getConsumers());
+
+								for (List<ExecutionEdge> edges : partition.getConsumers()) {
+									for (ExecutionEdge edge : edges) {
+										consumerVerticesToSchedule.add(edge.getTarget());
+									}
+								}
 							}
 						}
+						maybeScheduleConsumers(consumerVerticesToSchedule);
 
 						updateAccumulatorsAndMetrics(userAccumulators, metrics);
 
