@@ -19,6 +19,7 @@
 
 package org.apache.flink.runtime.scheduler;
 
+import org.apache.flink.api.common.InputDependencyConstraint;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
@@ -31,6 +32,7 @@ import org.apache.flink.runtime.checkpoint.hooks.TestMasterHook;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.concurrent.ManuallyTriggeredScheduledExecutor;
 import org.apache.flink.runtime.execution.ExecutionState;
+import org.apache.flink.runtime.executiongraph.AccessExecutionJobVertex;
 import org.apache.flink.runtime.executiongraph.ArchivedExecutionVertex;
 import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategyLoader;
@@ -45,6 +47,7 @@ import org.apache.flink.runtime.jobgraph.JobStatus;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.ScheduleMode;
+import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobgraph.tasks.CheckpointCoordinatorConfiguration;
 import org.apache.flink.runtime.jobgraph.tasks.JobCheckpointingSettings;
 import org.apache.flink.runtime.jobmanager.scheduler.NoResourceAvailableException;
@@ -620,4 +623,46 @@ public class DefaultSchedulerTest extends TestLogger {
 		scheduler.startScheduling();
 	}
 
+	@Test
+	public void testInputConstraintALLPerf() throws Exception {
+		final JobVertex v1 = new JobVertex("vertex1");
+		final JobVertex v2 = new JobVertex("vertex2");
+		final JobVertex v3 = new JobVertex("vertex3");
+		v1.setParallelism(1000);
+		v2.setParallelism(1000);
+		v3.setParallelism(1000);
+		v1.setInvokableClass(AbstractInvokable.class);
+		v2.setInvokableClass(AbstractInvokable.class);
+		v3.setInvokableClass(AbstractInvokable.class);
+		v1.setInputDependencyConstraint(InputDependencyConstraint.ALL);
+		v2.setInputDependencyConstraint(InputDependencyConstraint.ALL);
+		v3.setInputDependencyConstraint(InputDependencyConstraint.ALL);
+		v2.connectNewDataSetAsInput(v1, DistributionPattern.ALL_TO_ALL, ResultPartitionType.BLOCKING);
+		v2.connectNewDataSetAsInput(v3, DistributionPattern.ALL_TO_ALL, ResultPartitionType.BLOCKING);
+		final JobGraph jobGraph = new JobGraph(v1, v2, v3);
+
+		final DefaultScheduler scheduler = createSchedulerAndStartScheduling(jobGraph);
+
+		final AccessExecutionJobVertex ejv1 = scheduler.requestJob().getAllVertices().get(v1.getID());
+
+		for (int i = 0; i < 999; i++) {
+			final ExecutionAttemptID attemptId = ejv1.getTaskVertices()[i].getCurrentExecutionAttempt().getAttemptId();
+			scheduler.updateTaskExecutionState(
+				new TaskExecutionState(
+					jobGraph.getJobID(),
+					attemptId,
+					ExecutionState.FINISHED));
+		}
+
+		final long startMillis = System.nanoTime() / 1000_000;
+
+		scheduler.updateTaskExecutionState(
+			new TaskExecutionState(
+				jobGraph.getJobID(),
+				ejv1.getTaskVertices()[999].getCurrentExecutionAttempt().getAttemptId(),
+				ExecutionState.FINISHED));
+
+		final long endMillis = System.nanoTime() / 1000_000;
+		System.out.println("Time elapsed (millis): " + (endMillis - startMillis));
+	}
 }
