@@ -286,7 +286,7 @@ public class MockEnvironment implements Environment, AutoCloseable {
 
 	@Override
 	public ExecutionAttemptID getExecutionId() {
-		return new ExecutionAttemptID(0L, 0L);
+		return new ExecutionAttemptID();
 	}
 
 	@Override

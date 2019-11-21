@@ -123,7 +123,7 @@ public class StreamMockEnvironment implements Environment {
 		TaskStateManager taskStateManager) {
 		this(
 			new JobID(),
-			new ExecutionAttemptID(0L, 0L),
+			new ExecutionAttemptID(),
 			jobConfig,
 			taskConfig,
 			executionConfig,

@@ -28,12 +28,14 @@ import org.apache.flink.shaded.netty4.io.netty.buffer.ByteBuf;
  */
 public class ExecutionAttemptID extends AbstractID {
 
-	private static final long serialVersionUID = -1169683445778281344L;
+	private static final long serialVersionUID = 3397186857619817755L;
+
+	public static final ExecutionAttemptID DEFAULT = new ExecutionAttemptID(-1, -1);
 
 	public ExecutionAttemptID() {
 	}
 
-	public ExecutionAttemptID(long lowerPart, long upperPart) {
+	private ExecutionAttemptID(long lowerPart, long upperPart) {
 		super(lowerPart, upperPart);
 	}
 
@@ -45,6 +47,12 @@ public class ExecutionAttemptID extends AbstractID {
 	public static ExecutionAttemptID fromByteBuf(ByteBuf buf) {
 		long lower = buf.readLong();
 		long upper = buf.readLong();
+		return new ExecutionAttemptID(lower, upper);
+	}
+
+	public static ExecutionAttemptID copy(ExecutionAttemptID other) {
+		long lower = other.lowerPart;
+		long upper = other.upperPart;
 		return new ExecutionAttemptID(lower, upper);
 	}
 }

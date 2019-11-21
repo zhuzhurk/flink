@@ -52,7 +52,7 @@ public class BlobLibraryCacheManager implements LibraryCacheManager {
 
 	private static final Logger LOG = LoggerFactory.getLogger(BlobLibraryCacheManager.class);
 
-	private static final ExecutionAttemptID JOB_ATTEMPT_ID = new ExecutionAttemptID(-1, -1);
+	private static final ExecutionAttemptID JOB_ATTEMPT_ID = ExecutionAttemptID.DEFAULT;
 
 	// --------------------------------------------------------------------------------------------
 
