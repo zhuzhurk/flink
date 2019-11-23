@@ -278,11 +278,19 @@ jobs:
       stage: test
       env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -De2e-metrics -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup1"
       script: ./tools/travis/nightly.sh split_misc.sh
-      name: e2e - misc - hadoop 2.8
+      name: e2e - misc-1 - hadoop 2.8
+    - if: type in (pull_request, push)
+      env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -De2e-metrics -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup1"
+      script: ./tools/travis/nightly.sh split_misc_2.sh
+      name: e2e - misc-2 - hadoop 2.8
     - if: type in (pull_request, push)
       env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup2"
       script: ./tools/travis/nightly.sh split_ha.sh
-      name: e2e - ha - hadoop 2.8
+      name: e2e - ha-1 - hadoop 2.8
+    - if: type in (pull_request, push)
+      env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup2"
+      script: ./tools/travis/nightly.sh split_ha_2.sh
+      name: e2e - ha-2 - hadoop 2.8
     - if: type in (pull_request, push)
       env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup3"
       script: ./tools/travis/nightly.sh split_sticky.sh
@@ -303,11 +311,19 @@ jobs:
     - if: type in (pull_request, push)
       env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -Dscala-2.12 -De2e-metrics -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup1"
       script: ./tools/travis/nightly.sh split_misc.sh
-      name: e2e - misc - scala 2.12
+      name: e2e - misc-1 - scala 2.12
+    - if: type in (pull_request, push)
+      env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -Dscala-2.12 -De2e-metrics -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup1"
+      script: ./tools/travis/nightly.sh split_misc_2.sh
+      name: e2e - misc-2 - scala 2.12
     - if: type in (pull_request, push)
       env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -Dscala-2.12 -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup2"
       script: ./tools/travis/nightly.sh split_ha.sh
-      name: e2e - ha - scala 2.12
+      name: e2e - ha-1 - scala 2.12
+    - if: type in (pull_request, push)
+      env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -Dscala-2.12 -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup2"
+      script: ./tools/travis/nightly.sh split_ha_2.sh
+      name: e2e - ha-2 - scala 2.12
     - if: type in (pull_request, push)
       env: PROFILE="-Dinclude-hadoop -Dhadoop.version=2.8.3 -Dscala-2.12 -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup3"
       script: ./tools/travis/nightly.sh split_sticky.sh
@@ -328,11 +344,19 @@ jobs:
     - if: type in (pull_request, push)
       env: PROFILE="-De2e-metrics -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup1"
       script: ./tools/travis/nightly.sh split_misc_hadoopfree.sh
-      name: e2e - misc
+      name: e2e - misc-1
+    - if: type in (pull_request, push)
+      env: PROFILE="-De2e-metrics -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup1"
+      script: ./tools/travis/nightly.sh split_misc_hadoopfree_2.sh
+      name: e2e - misc-2
     - if: type in (pull_request, push)
       env: PROFILE="-DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup2"
       script: ./tools/travis/nightly.sh split_ha.sh
-      name: e2e - ha
+      name: e2e - ha-1
+    - if: type in (pull_request, push)
+      env: PROFILE="-DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup2"
+      script: ./tools/travis/nightly.sh split_ha_2.sh
+      name: e2e - ha-2
     - if: type in (pull_request, push)
       env: PROFILE="-DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup3"
       script: ./tools/travis/nightly.sh split_sticky.sh
@@ -355,11 +379,19 @@ jobs:
       jdk: "openjdk11"
       env: PROFILE="-Djdk11 -Dinclude-hadoop -Dhadoop.version=2.8.3 -De2e-metrics -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup1"
       script: ./tools/travis/nightly.sh split_misc.sh
-      name: e2e - misc - jdk11
+      name: e2e - misc-1 - jdk11
+    - if: type in (pull_request, push)
+      env: PROFILE="-Djdk11 -Dinclude-hadoop -Dhadoop.version=2.8.3 -De2e-metrics -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup1"
+      script: ./tools/travis/nightly.sh split_misc_2.sh
+      name: e2e - misc-2 - jdk11
     - if: type in (pull_request, push)
       env: PROFILE="-Djdk11 -Dinclude-hadoop -Dhadoop.version=2.8.3 -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup2"
       script: ./tools/travis/nightly.sh split_ha.sh
-      name: e2e - ha - jdk11
+      name: e2e - ha-1 - jdk11
+    - if: type in (pull_request, push)
+      env: PROFILE="-Djdk11 -Dinclude-hadoop -Dhadoop.version=2.8.3 -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup2"
+      script: ./tools/travis/nightly.sh split_ha_2.sh
+      name: e2e - ha-2 - jdk11
     - if: type in (pull_request, push)
       env: PROFILE="-Djdk11 -Dinclude-hadoop -Dhadoop.version=2.8.3 -DincludeE2E=org.apache.flink.tests.util.categories.TravisGroup3"
       script: ./tools/travis/nightly.sh split_sticky.sh
