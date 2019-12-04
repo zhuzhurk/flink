@@ -84,6 +84,14 @@ public interface SlotSelectionStrategy {
 				slotInfoWithUtilization.getResourceProfile(),
 				slotInfoWithUtilization.getTaskExecutorUtilization());
 		}
+
+		@Override
+		public String toString() {
+			return "SlotInfoAndResources: { slotInfo: " + slotInfo
+				+ ", remainingResources: " + remainingResources
+				+ ", taskExecutorUtilization: " + taskExecutorUtilization
+				+ "}";
+		}
 	}
 
 	/**
@@ -114,6 +122,11 @@ public interface SlotSelectionStrategy {
 
 		public static SlotInfoAndLocality of(@Nonnull SlotInfo slotInfo, @Nonnull Locality locality) {
 			return new SlotInfoAndLocality(slotInfo, locality);
+		}
+
+		@Override
+		public String toString() {
+			return "SlotInfoAndLocality:{ slotInfo: " + slotInfo + ", locality: " + locality + "}";
 		}
 	}
 }

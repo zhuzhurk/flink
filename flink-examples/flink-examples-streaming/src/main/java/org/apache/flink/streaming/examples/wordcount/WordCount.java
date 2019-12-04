@@ -62,13 +62,14 @@ public class WordCount {
 
 		// get input data
 		DataStream<String> text = null;
+		int n = 1;
 		if (params.has("input")) {
 			// union all the inputs from text files
 			for (String input : params.getMultiParameterRequired("input")) {
 				if (text == null) {
-					text = env.readTextFile(input);
+					text = env.readTextFile(input).name("input" + n++);
 				} else {
-					text = text.union(env.readTextFile(input));
+					text = text.union(env.readTextFile(input).name("input" + n++));
 				}
 			}
 			Preconditions.checkNotNull(text, "Input DataStream should not be null.");

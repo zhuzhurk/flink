@@ -451,14 +451,24 @@ public class SchedulerImpl implements Scheduler {
 		Collection<SlotSelectionStrategy.SlotInfoAndResources> resolvedRootSlotsInfo =
 				slotSharingManager.listResolvedRootSlotInfo(groupId);
 
+		log.info("resolvedRootSlotsInfo size: {}, values: {}", resolvedRootSlotsInfo.size(), resolvedRootSlotsInfo);
+
 		SlotSelectionStrategy.SlotInfoAndLocality bestResolvedRootSlotWithLocality =
 			slotSelectionStrategy.selectBestSlotForProfile(resolvedRootSlotsInfo, slotProfile).orElse(null);
+
+		log.info("bestResolvedRootSlotWithLocality: {}", bestResolvedRootSlotWithLocality);
 
 		final SlotSharingManager.MultiTaskSlotLocality multiTaskSlotLocality = bestResolvedRootSlotWithLocality != null ?
 			new SlotSharingManager.MultiTaskSlotLocality(
 				slotSharingManager.getResolvedRootSlot(bestResolvedRootSlotWithLocality.getSlotInfo()),
 				bestResolvedRootSlotWithLocality.getLocality()) :
 			null;
+
+		if (multiTaskSlotLocality != null){
+			log.info("multiTaskSlotLocality, slot requestId: {}, locality: {}",
+				multiTaskSlotLocality.getMultiTaskSlot().getSlotRequestId(),
+				multiTaskSlotLocality.getLocality());
+		}
 
 		if (multiTaskSlotLocality != null && multiTaskSlotLocality.getLocality() == Locality.LOCAL) {
 			return multiTaskSlotLocality;

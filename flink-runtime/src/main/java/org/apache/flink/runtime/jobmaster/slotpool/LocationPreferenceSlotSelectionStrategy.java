@@ -24,6 +24,9 @@ import org.apache.flink.runtime.clusterframework.types.SlotProfile;
 import org.apache.flink.runtime.jobmanager.scheduler.Locality;
 import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.annotation.Nonnull;
 
 import java.util.Collection;
@@ -35,6 +38,8 @@ import java.util.Optional;
  * This class implements a {@link SlotSelectionStrategy} that is based on location preference hints.
  */
 public abstract class LocationPreferenceSlotSelectionStrategy implements SlotSelectionStrategy {
+
+	private static final Logger log = LoggerFactory.getLogger(LocationPreferenceSlotSelectionStrategy.class);
 
 	LocationPreferenceSlotSelectionStrategy() {}
 
@@ -50,6 +55,9 @@ public abstract class LocationPreferenceSlotSelectionStrategy implements SlotSel
 		}
 
 		final ResourceProfile resourceProfile = slotProfile.getPhysicalSlotResourceProfile();
+
+		log.info("required resourceProfile: {}", resourceProfile);
+		log.info("available slots: {}", availableSlots);
 
 		// if we have no location preferences, we can only filter by the additional requirements.
 		return locationPreferences.isEmpty() ?
@@ -89,6 +97,7 @@ public abstract class LocationPreferenceSlotSelectionStrategy implements SlotSel
 					candidate.getSlotInfo().getTaskManagerLocation().getFQDNHostname(), 0);
 
 				double candidateScore = calculateCandidateScore(localWeigh, hostLocalWeigh, candidate.getTaskExecutorUtilization());
+				log.info("candidateScore: {}, bestCandidateScore: {}", candidateScore, bestCandidateScore);
 				if (candidateScore > bestCandidateScore) {
 					bestCandidateScore = candidateScore;
 					bestCandidate = candidate;
