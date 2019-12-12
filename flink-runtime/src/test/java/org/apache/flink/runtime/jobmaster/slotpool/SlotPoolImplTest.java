@@ -800,7 +800,7 @@ public class SlotPoolImplTest extends TestLogger {
 			timeout);
 	}
 
-	private static void setupSlotPool(
+	static void setupSlotPool(
 		SlotPoolImpl slotPool,
 		ResourceManagerGateway resourceManagerGateway,
 		ComponentMainThreadExecutor mainThreadExecutable) throws Exception {
@@ -811,7 +811,7 @@ public class SlotPoolImplTest extends TestLogger {
 		slotPool.connectToResourceManager(resourceManagerGateway);
 	}
 
-	private static Scheduler setupScheduler(
+	static Scheduler setupScheduler(
 		SlotPool slotPool,
 		ComponentMainThreadExecutor mainThreadExecutable) {
 		Scheduler scheduler = new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool);
