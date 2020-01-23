@@ -26,6 +26,7 @@ import org.apache.flink.runtime.instance.SlotSharingGroupId;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobmanager.scheduler.ScheduledUnit;
 import org.apache.flink.runtime.jobmaster.LogicalSlot;
+import org.apache.flink.runtime.jobmaster.SlotRequestId;
 import org.apache.flink.runtime.resourcemanager.SlotRequest;
 import org.apache.flink.runtime.resourcemanager.utils.TestingResourceManagerGateway;
 import org.apache.flink.runtime.taskexecutor.slot.SlotOffer;
@@ -44,6 +45,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+import static org.apache.flink.runtime.jobmaster.slotpool.AvailableSlotsTest.DEFAULT_TESTING_PROFILE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -134,7 +136,7 @@ public class SlotPoolSlotSharingTest extends TestLogger {
 	}
 
 	/**
-	 * Tests queued slot scheduling with a single slot sharing group
+	 * Tests queued slot scheduling with a single slot sharing group.
 	 */
 	@Test
 	public void testQueuedSharedSlotScheduling() throws Exception {
@@ -511,5 +513,64 @@ public class SlotPoolSlotSharingTest extends TestLogger {
 
 		LogicalSlot logicalSlot3 = logicalSlotFuture3.get();
 		assertEquals(allocationId2, logicalSlot3.getAllocationId());
+	}
+
+	@Test
+	public void testNoSlotLeakOnSharedSlotOversubscribedException() throws Exception {
+		final CompletableFuture<AllocationID> allocationIdFuture = new CompletableFuture<>();
+		final TestingResourceManagerGateway testingResourceManagerGateway = slotPoolResource.getTestingResourceManagerGateway();
+		testingResourceManagerGateway.setRequestSlotConsumer(
+			(SlotRequest slotRequest) -> allocationIdFuture.complete(slotRequest.getAllocationId()));
+
+		final SlotPoolImpl slotPool = slotPoolResource.getSlotPool();
+		final SlotProvider scheduler = slotPoolResource.getSlotProvider();
+
+		final LocalTaskManagerLocation taskManagerLocation = new LocalTaskManagerLocation();
+		slotPool.registerTaskManager(taskManagerLocation.getResourceID());
+
+		final SlotSharingGroupId slotSharingGroupId = new SlotSharingGroupId();
+
+		final SlotRequestId requestId1 = new SlotRequestId();
+		final CompletableFuture<LogicalSlot> slotRequestFuture1 = scheduler.allocateSlot(
+			requestId1,
+			new ScheduledUnit(new JobVertexID(), slotSharingGroupId, null),
+			SlotProfile.noLocality(DEFAULT_TESTING_PROFILE),
+			true,
+			TestingUtils.infiniteTime());
+
+		final SlotRequestId requestId2 = new SlotRequestId();
+		final CompletableFuture<LogicalSlot> slotRequestFuture2 = scheduler.allocateSlot(
+			requestId2,
+			new ScheduledUnit(new JobVertexID(), slotSharingGroupId, null),
+			SlotProfile.noLocality(DEFAULT_TESTING_PROFILE),
+			true,
+			TestingUtils.infiniteTime());
+
+		final AllocationID allocationId = allocationIdFuture.get();
+		final SlotOffer slotOffer = new SlotOffer(
+			allocationId,
+			0,
+			DEFAULT_TESTING_PROFILE);
+		slotPool.offerSlot(taskManagerLocation, new SimpleAckingTaskManagerGateway(), slotOffer);
+
+		assertTrue(slotRequestFuture1.isDone() || slotRequestFuture2.isDone());
+
+		final CompletableFuture<LogicalSlot> firstFulfilled;
+		final CompletableFuture<LogicalSlot> latterFulfilled;
+		if (slotRequestFuture1.isDone()) {
+			firstFulfilled = slotRequestFuture1;
+			latterFulfilled = slotRequestFuture2;
+		} else {
+			firstFulfilled = slotRequestFuture2;
+			latterFulfilled = slotRequestFuture1;
+		}
+
+		assertFalse(latterFulfilled.isDone());
+
+		firstFulfilled.get().releaseSlot(new Exception("Force release to fulfill the other slot request"));
+		assertTrue(latterFulfilled.isDone());
+
+		latterFulfilled.get().releaseSlot(new Exception("Force release to return the physical slot to slot pool"));
+		assertEquals(1, slotPool.getAvailableSlots().size());
 	}
 }
