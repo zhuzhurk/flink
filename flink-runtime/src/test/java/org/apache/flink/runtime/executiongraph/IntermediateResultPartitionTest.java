@@ -20,6 +20,7 @@ package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.testutils.DirectScheduledExecutorService;
@@ -133,7 +134,7 @@ public class IntermediateResultPartitionTest extends TestLogger {
 
 		ExecutionJobVertex jobVertex = getExecutionVertex(new JobVertexID(), new DirectScheduledExecutorService());
 		IntermediateResult result =
-				new IntermediateResult(new IntermediateDataSetID(), jobVertex, producerCount, resultPartitionType);
+				new IntermediateResult(new IntermediateDataSetID(), jobVertex, producerCount, resultPartitionType, DistributionPattern.POINTWISE);
 		for (int i = 0; i < producerCount; i++) {
 			// Generate result partition in the result
 			new ExecutionVertex(jobVertex, i, new IntermediateResult[]{result}, Time.minutes(1));

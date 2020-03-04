@@ -36,6 +36,7 @@ import org.apache.flink.runtime.executiongraph.JobInformation;
 import org.apache.flink.runtime.executiongraph.TaskInformation;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
 import org.apache.flink.runtime.shuffle.UnknownShuffleDescriptor;
@@ -109,18 +110,30 @@ public class TaskDeploymentDescriptorFactory {
 			// need to request the one matching our sub task index.
 			// TODO Refactor after removing the consumers from the intermediate result partitions
 			int numConsumerEdges = edges[0].getSource().getConsumers().get(0).size();
-
 			int queueToRequest = subtaskIndex % numConsumerEdges;
 
 			IntermediateResult consumedIntermediateResult = edges[0].getSource().getIntermediateResult();
 			IntermediateDataSetID resultId = consumedIntermediateResult.getId();
 			ResultPartitionType partitionType = consumedIntermediateResult.getResultType();
 
+			final ShuffleDescriptor[] shuffleDescriptors;
+			if (consumedIntermediateResult.getDistributionPattern() == DistributionPattern.ALL_TO_ALL) {
+				final ShuffleDescriptor[] cachedShuffleDescriptors = consumedIntermediateResult.getShuffleDescriptors();
+				if (cachedShuffleDescriptors != null) {
+					shuffleDescriptors = cachedShuffleDescriptors;
+				} else {
+					shuffleDescriptors = getConsumedPartitionShuffleDescriptors(edges);
+					consumedIntermediateResult.setShuffleDescriptors(shuffleDescriptors);
+				}
+			} else {
+				shuffleDescriptors = getConsumedPartitionShuffleDescriptors(edges);
+			}
+
 			inputGates.add(new InputGateDeploymentDescriptor(
 				resultId,
 				partitionType,
 				queueToRequest,
-				getConsumedPartitionShuffleDescriptors(edges)));
+				shuffleDescriptors));
 		}
 
 		return inputGates;

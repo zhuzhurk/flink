@@ -20,8 +20,10 @@ package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
+import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
 
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,11 +59,16 @@ public class IntermediateResult {
 
 	private final ResultPartitionType resultType;
 
+	private final DistributionPattern distributionPattern;
+
+	private ShuffleDescriptor[] shuffleDescriptors;
+
 	public IntermediateResult(
 			IntermediateDataSetID id,
 			ExecutionJobVertex producer,
 			int numParallelProducers,
-			ResultPartitionType resultType) {
+			ResultPartitionType resultType,
+			DistributionPattern distributionPattern) {
 
 		this.id = checkNotNull(id);
 		this.producer = checkNotNull(producer);
@@ -81,6 +88,8 @@ public class IntermediateResult {
 
 		// The runtime type for this produced result
 		this.resultType = checkNotNull(resultType);
+
+		this.distributionPattern = distributionPattern;
 	}
 
 	public void setPartition(int partitionNumber, IntermediateResultPartition partition) {
@@ -107,6 +116,10 @@ public class IntermediateResult {
 
 	public IntermediateResultPartition[] getPartitions() {
 		return partitions;
+	}
+
+	public DistributionPattern getDistributionPattern() {
+		return distributionPattern;
 	}
 
 	/**
@@ -182,5 +195,13 @@ public class IntermediateResult {
 	@Override
 	public String toString() {
 		return "IntermediateResult " + id.toString();
+	}
+
+	public ShuffleDescriptor[] getShuffleDescriptors() {
+		return shuffleDescriptors;
+	}
+
+	public void setShuffleDescriptors(ShuffleDescriptor[] shuffleDescriptors) {
+		this.shuffleDescriptors = shuffleDescriptors;
 	}
 }

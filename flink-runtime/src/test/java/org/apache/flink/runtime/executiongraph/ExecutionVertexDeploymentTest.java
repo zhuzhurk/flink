@@ -305,7 +305,7 @@ public class ExecutionVertexDeploymentTest extends TestLogger {
 				scheduleMode);
 
 			IntermediateResult result =
-				new IntermediateResult(new IntermediateDataSetID(), jobVertex, 1, ResultPartitionType.PIPELINED);
+				new IntermediateResult(new IntermediateDataSetID(), jobVertex, 1, ResultPartitionType.PIPELINED, DistributionPattern.POINTWISE);
 
 			ExecutionAttemptID attemptID = new ExecutionAttemptID();
 			ExecutionVertex vertex =
@@ -353,7 +353,7 @@ public class ExecutionVertexDeploymentTest extends TestLogger {
 			ComponentMainThreadExecutorServiceAdapter.forSingleThreadExecutor(scheduledExecutorService));
 	@Test
 	public void testTddCreationPerformance() throws Exception {
-		final int parallelism = 4000;
+		final int parallelism = 1000;
 
 		final JobID jobId = new JobID();
 

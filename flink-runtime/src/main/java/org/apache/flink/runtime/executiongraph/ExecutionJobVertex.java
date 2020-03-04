@@ -224,7 +224,8 @@ public class ExecutionJobVertex implements AccessExecutionJobVertex, Archiveable
 					result.getId(),
 					this,
 					numTaskVertices,
-					result.getResultType());
+					result.getResultType(),
+					result.getConsumers().get(0).getDistributionPattern());
 		}
 
 		// create all task vertices
