@@ -1264,18 +1264,7 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 				return;
 			}
 
-			if (!fromSchedulerNg && !isLegacyScheduling()) {
-				vertex.getExecutionGraph().notifySchedulerNgAboutInternalTaskFailure(attemptId, t);
-
-				// HACK: We informed the new generation scheduler about an internally detected task
-				// failure. The scheduler will call processFail() again with releasePartitions
-				// always set to false, isCallback to true and fromSchedulerNg set to true.
-				// Because the original value of releasePartitions and isCallback will be lost,
-				// we may need to invoke partition release and remote canceling here.
-				maybeReleasePartitionsAndSendCancelRpcCall(current, isCallback, releasePartitions);
-
-				return;
-			} else if (transitionState(current, FAILED, t)) {
+			if (transitionState(current, FAILED, t)) {
 				// success (in a manner of speaking)
 				this.failureCause = t;
 
@@ -1284,9 +1273,7 @@ public class Execution implements AccessExecution, Archiveable<ArchivedExecution
 				releaseAssignedResource(t);
 				vertex.getExecutionGraph().deregisterExecution(this);
 
-				if (isLegacyScheduling()) {
-					maybeReleasePartitionsAndSendCancelRpcCall(current, isCallback, releasePartitions);
-				}
+				maybeReleasePartitionsAndSendCancelRpcCall(current, isCallback, releasePartitions);
 
 				// leave the loop
 				return;
