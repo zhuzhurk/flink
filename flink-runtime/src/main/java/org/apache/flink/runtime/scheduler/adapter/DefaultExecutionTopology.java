@@ -40,7 +40,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Adapter of {@link ExecutionGraph} to {@link SchedulingTopology}.
  */
-public class DefaultExecutionTopology implements SchedulingTopology<DefaultExecutionVertex, DefaultResultPartition> {
+public class DefaultExecutionTopology implements SchedulingTopology {
 
 	private final boolean containsCoLocationConstraints;
 
