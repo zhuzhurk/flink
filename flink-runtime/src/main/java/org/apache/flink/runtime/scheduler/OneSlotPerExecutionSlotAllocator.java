@@ -135,7 +135,6 @@ class OneSlotPerExecutionSlotAllocator extends AbstractExecutionSlotAllocator im
 			final SlotExecutionVertexAssignment slotExecutionVertexAssignment =
 				createAndRegisterSlotExecutionVertexAssignment(
 					executionVertexId,
-					new CompletableFuture<>(),
 					slotProvider::cancelSlotRequest);
 			slotExecutionVertexAssignments.add(slotExecutionVertexAssignment);
 		}
