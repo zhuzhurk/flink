@@ -72,16 +72,23 @@ class DefaultExecutionSlotAllocator extends AbstractExecutionSlotAllocator {
 			final ExecutionVertexID executionVertexId = schedulingRequirements.getExecutionVertexId();
 			final SlotSharingGroupId slotSharingGroupId = schedulingRequirements.getSlotSharingGroupId();
 
-			final CompletableFuture<LogicalSlot> slotFuture = allocateSlot(
-				schedulingRequirements,
-				allPreviousAllocationIds);
-
 			final SlotExecutionVertexAssignment slotExecutionVertexAssignment =
 				createAndRegisterSlotExecutionVertexAssignment(
 					executionVertexId,
-					slotFuture,
 					(requestId, throwable) ->
 						slotProviderStrategy.cancelSlotRequest(requestId, slotSharingGroupId, throwable));
+
+			allocateSlot(
+				schedulingRequirements,
+				slotExecutionVertexAssignment.getSlotRequestId(),
+				allPreviousAllocationIds).whenComplete(
+					(slot, throwable) -> {
+						if (throwable != null) {
+							slotExecutionVertexAssignment.getLogicalSlotFuture().completeExceptionally(throwable);
+						} else {
+							slotExecutionVertexAssignment.getLogicalSlotFuture().complete(slot);
+						}
+					});
 
 			slotExecutionVertexAssignments.add(slotExecutionVertexAssignment);
 		}
@@ -91,10 +98,10 @@ class DefaultExecutionSlotAllocator extends AbstractExecutionSlotAllocator {
 
 	private CompletableFuture<LogicalSlot> allocateSlot(
 			final ExecutionVertexSchedulingRequirements schedulingRequirements,
+			final SlotRequestId slotRequestId,
 			final Set<AllocationID> allPreviousAllocationIds) {
 
 		final ExecutionVertexID executionVertexId = schedulingRequirements.getExecutionVertexId();
-		final SlotRequestId slotRequestId = new SlotRequestId();
 
 		LOG.debug("Allocate slot with id {} for execution {}", slotRequestId, executionVertexId);
 

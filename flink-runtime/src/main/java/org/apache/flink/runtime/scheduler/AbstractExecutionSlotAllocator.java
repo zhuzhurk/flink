@@ -73,10 +73,10 @@ abstract class AbstractExecutionSlotAllocator implements ExecutionSlotAllocator 
 
 	SlotExecutionVertexAssignment createAndRegisterSlotExecutionVertexAssignment(
 			final ExecutionVertexID executionVertexId,
-			final CompletableFuture<LogicalSlot> logicalSlotFuture,
 			final BiConsumer<SlotRequestId, Throwable> slotRequestFailureHandler) {
 
 		final SlotRequestId slotRequestId = new SlotRequestId();
+		final CompletableFuture<LogicalSlot> logicalSlotFuture = new CompletableFuture<>();
 		final SlotExecutionVertexAssignment slotExecutionVertexAssignment =
 			new SlotExecutionVertexAssignment(executionVertexId, slotRequestId, logicalSlotFuture);
 

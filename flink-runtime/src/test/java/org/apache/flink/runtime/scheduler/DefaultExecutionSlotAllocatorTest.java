@@ -173,6 +173,28 @@ public class DefaultExecutionSlotAllocatorTest extends TestLogger {
 		}
 	}
 
+	@Test
+	public void testSlotAssignmentIsProperlyRegistered() {
+		final DefaultExecutionSlotAllocator executionSlotAllocator = createExecutionSlotAllocator();
+
+		final ExecutionVertexID executionVertexID = new ExecutionVertexID(new JobVertexID(), 0);
+		final List<ExecutionVertexSchedulingRequirements> schedulingRequirements =
+			createSchedulingRequirements(executionVertexID);
+
+		slotProvider.disableSlotAllocation();
+		final Collection<SlotExecutionVertexAssignment> slotExecutionVertexAssignments =
+			executionSlotAllocator.allocateSlotsFor(schedulingRequirements);
+
+		final SlotExecutionVertexAssignment slotAssignment = slotExecutionVertexAssignments.iterator().next();
+
+		assertThat(executionSlotAllocator.getPendingSlotAssignments().values(), contains(slotAssignment));
+
+		executionSlotAllocator.cancel(executionVertexID);
+
+		assertThat(executionSlotAllocator.getPendingSlotAssignments().keySet(), hasSize(0));
+		assertThat(slotProvider.getCancelledSlotRequestIds(), contains(slotAssignment.getSlotRequestId()));
+	}
+
 	private DefaultExecutionSlotAllocator createExecutionSlotAllocator() {
 		return createExecutionSlotAllocator(
 			new TestingStateLocationRetriever(),
@@ -227,6 +249,10 @@ public class DefaultExecutionSlotAllocatorTest extends TestLogger {
 
 		public void disableSlotAllocation() {
 			slotAllocationDisabled = true;
+		}
+
+		List<SlotRequestId> getCancelledSlotRequestIds() {
+			return cancelledSlotRequestIds;
 		}
 	}
 }

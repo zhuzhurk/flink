@@ -30,7 +30,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
@@ -168,8 +167,7 @@ public class AbstractExecutionSlotAllocatorTest extends TestLogger {
 				slotExecutionVertexAssignments.add(
 					createAndRegisterSlotExecutionVertexAssignment(
 						schedulingRequirements.getExecutionVertexId(),
-						new CompletableFuture<>(),
-						((slotRequestId, throwable) -> {})));
+						(slotRequestId, throwable) -> {}));
 			}
 
 			return slotExecutionVertexAssignments;
