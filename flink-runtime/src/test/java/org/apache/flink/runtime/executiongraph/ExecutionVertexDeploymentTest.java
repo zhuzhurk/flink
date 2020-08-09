@@ -18,19 +18,33 @@
 
 package org.apache.flink.runtime.executiongraph;
 
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.time.Time;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.deployment.TaskDeploymentDescriptor;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.utils.SimpleAckingTaskManagerGateway;
+import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.jobgraph.DistributionPattern;
+import org.apache.flink.runtime.jobgraph.JobGraph;
+import org.apache.flink.runtime.jobgraph.JobType;
+import org.apache.flink.runtime.jobgraph.JobVertex;
+import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobmaster.LogicalSlot;
 import org.apache.flink.runtime.jobmaster.TestingLogicalSlot;
 import org.apache.flink.runtime.jobmaster.TestingLogicalSlotBuilder;
 import org.apache.flink.runtime.messages.Acknowledge;
+import org.apache.flink.runtime.scheduler.SchedulerBase;
+import org.apache.flink.runtime.scheduler.SchedulerTestingUtils;
+import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
+import org.apache.flink.runtime.testtasks.NoOpInvokable;
 import org.apache.flink.util.TestLogger;
 
 import org.junit.Test;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import static org.apache.flink.runtime.executiongraph.ExecutionGraphTestUtils.getExecutionVertex;
 import static org.hamcrest.CoreMatchers.is;
@@ -266,6 +280,62 @@ public class ExecutionVertexDeploymentTest extends TestLogger {
         public CompletableFuture<Acknowledge> submitTask(
                 TaskDeploymentDescriptor tdd, Time timeout) {
             return new CompletableFuture<>();
+        }
+    }
+
+    private static final ScheduledExecutorService scheduledExecutorService =
+            Executors.newSingleThreadScheduledExecutor();
+
+    private static final TestingComponentMainThreadExecutor mainThreadExecutor =
+            new TestingComponentMainThreadExecutor(
+                    ComponentMainThreadExecutorServiceAdapter.forSingleThreadExecutor(
+                            scheduledExecutorService));
+
+    @Test
+    public void testTddCreationPerformance() throws Exception {
+        final int parallelism = 4000;
+
+        final JobID jobId = new JobID();
+
+        final JobVertex source = new JobVertex("source");
+        source.setInvokableClass(NoOpInvokable.class);
+        source.setParallelism(parallelism);
+
+        final JobVertex sink = new JobVertex("sink");
+        sink.setInvokableClass(NoOpInvokable.class);
+        sink.setParallelism(parallelism);
+
+        sink.connectNewDataSetAsInput(
+                source, DistributionPattern.ALL_TO_ALL, ResultPartitionType.PIPELINED);
+
+        final JobGraph jobGraph = new JobGraph(jobId, "Test Job", source, sink);
+        jobGraph.setJobType(JobType.STREAMING);
+        final SchedulerBase scheduler =
+                SchedulerTestingUtils.createScheduler(
+                        jobGraph, mainThreadExecutor.getMainThreadExecutor());
+
+        final long start = System.currentTimeMillis();
+
+        deploy(source.getID(), parallelism, scheduler);
+        deploy(sink.getID(), parallelism, scheduler);
+
+        final long end = System.currentTimeMillis();
+        System.out.println("Time elapsed on scheduling: " + (end - start));
+    }
+
+    private void deploy(JobVertexID jobVertexId, int parallelism, SchedulerBase scheduler) {
+        for (int i = 0; i < parallelism; i++) {
+            final ExecutionVertexID executionVertexId = new ExecutionVertexID(jobVertexId, i);
+            final ExecutionVertex vertex = scheduler.getExecutionVertex(executionVertexId);
+            mainThreadExecutor.execute(
+                    () -> {
+                        final LogicalSlot slot =
+                                new TestingLogicalSlotBuilder().createTestingLogicalSlot();
+                        vertex.getCurrentExecutionAttempt()
+                                .registerProducedPartitions(slot.getTaskManagerLocation(), false);
+                        vertex.tryAssignResource(slot);
+                        vertex.deploy();
+                    });
         }
     }
 }
