@@ -380,6 +380,12 @@ public class JobManagerOptions {
 			.defaultValue(true)
 			.withDescription("Controls whether partitions should already be released during the job execution.");
 
+	public static final ConfigOption<Boolean> ENABLE_INPUT_LOCATION_PREFERENCES =
+		key("jobmanager.enable-input-location-preferences")
+			.booleanType()
+			.defaultValue(true)
+			.withDescription("Controls whether to enable input location preferences.");
+
 	// ---------------------------------------------------------------------------------------------
 
 	private JobManagerOptions() {

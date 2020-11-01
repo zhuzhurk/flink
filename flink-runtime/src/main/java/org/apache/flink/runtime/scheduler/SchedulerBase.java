@@ -439,6 +439,10 @@ public abstract class SchedulerBase implements SchedulerNG {
 		return jobGraph;
 	}
 
+	Configuration getJobMasterConfiguration() {
+		return jobMasterConfiguration;
+	}
+
 	protected abstract long getNumberOfRestarts();
 
 	private Map<ExecutionVertexID, ExecutionVertexVersion> incrementVersionsOfAllVertices() {

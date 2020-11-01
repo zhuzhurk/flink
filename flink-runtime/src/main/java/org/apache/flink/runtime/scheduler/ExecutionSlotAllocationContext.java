@@ -69,4 +69,6 @@ interface ExecutionSlotAllocationContext extends InputsLocationsRetriever, State
 	 * @return all co-location groups in the job
 	 */
 	Set<CoLocationGroupDesc> getCoLocationGroups();
+
+	boolean isInputLocationPreferencesEnabled();
 }

@@ -60,7 +60,8 @@ public class MergingSharedSlotProfileRetrieverTest {
 	public void testGetEmptySlotProfile() throws ExecutionException, InterruptedException {
 		SharedSlotProfileRetriever sharedSlotProfileRetriever = new MergingSharedSlotProfileRetrieverFactory(
 			EMPTY_PREFERRED_LOCATIONS_RETRIEVER,
-			executionVertexID -> new AllocationID()
+			executionVertexID -> new AllocationID(),
+			true
 		).createFromBulk(Collections.emptySet());
 
 		SlotProfile slotProfile = sharedSlotProfileRetriever
@@ -152,7 +153,8 @@ public class MergingSharedSlotProfileRetrieverTest {
 			int executionSlotSharingGroupSize) throws ExecutionException, InterruptedException {
 		SharedSlotProfileRetriever sharedSlotProfileRetriever = new MergingSharedSlotProfileRetrieverFactory(
 			preferredLocationsRetriever,
-			executionVertexID -> prevAllocationIDs.get(executions.indexOf(executionVertexID))
+			executionVertexID -> prevAllocationIDs.get(executions.indexOf(executionVertexID)),
+			true
 		).createFromBulk(new HashSet<>(executions));
 
 		ExecutionSlotSharingGroup executionSlotSharingGroup = new ExecutionSlotSharingGroup();

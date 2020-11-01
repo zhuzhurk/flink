@@ -22,6 +22,7 @@ package org.apache.flink.runtime.scheduler;
 import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.JobManagerOptions;
 import org.apache.flink.runtime.blob.BlobWriter;
 import org.apache.flink.runtime.checkpoint.CheckpointRecoveryFactory;
 import org.apache.flink.runtime.clusterframework.types.AllocationID;
@@ -519,6 +520,13 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 
 	private class DefaultExecutionSlotAllocationContext implements ExecutionSlotAllocationContext {
 
+		private final boolean enableInputLocationPreferences;
+
+		private DefaultExecutionSlotAllocationContext() {
+			enableInputLocationPreferences = getJobMasterConfiguration()
+				.getBoolean(JobManagerOptions.ENABLE_INPUT_LOCATION_PREFERENCES);
+		}
+
 		@Override
 		public ResourceProfile getResourceProfile(final ExecutionVertexID executionVertexId) {
 			return getExecutionVertex(executionVertexId).getResourceProfile();
@@ -559,6 +567,11 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 		@Override
 		public Optional<TaskManagerLocation> getStateLocation(ExecutionVertexID executionVertexId) {
 			return stateLocationRetriever.getStateLocation(executionVertexId);
+		}
+
+		@Override
+		public boolean isInputLocationPreferencesEnabled() {
+			return enableInputLocationPreferences;
 		}
 	}
 }

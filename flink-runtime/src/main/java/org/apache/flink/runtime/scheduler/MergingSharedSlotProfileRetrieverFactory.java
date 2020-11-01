@@ -41,11 +41,15 @@ class MergingSharedSlotProfileRetrieverFactory implements SharedSlotProfileRetri
 
 	private final Function<ExecutionVertexID, AllocationID> priorAllocationIdRetriever;
 
+	private final boolean inputLocationPreferencesEnabled;
+
 	MergingSharedSlotProfileRetrieverFactory(
 			SyncPreferredLocationsRetriever preferredLocationsRetriever,
-			Function<ExecutionVertexID, AllocationID> priorAllocationIdRetriever) {
+			Function<ExecutionVertexID, AllocationID> priorAllocationIdRetriever,
+			boolean inputLocationPreferencesEnabled) {
 		this.preferredLocationsRetriever = Preconditions.checkNotNull(preferredLocationsRetriever);
 		this.priorAllocationIdRetriever = Preconditions.checkNotNull(priorAllocationIdRetriever);
+		this.inputLocationPreferencesEnabled = inputLocationPreferencesEnabled;
 	}
 
 	@Override
@@ -104,7 +108,9 @@ class MergingSharedSlotProfileRetrieverFactory implements SharedSlotProfileRetri
 			Collection<TaskManagerLocation> preferredLocations = new ArrayList<>();
 			for (ExecutionVertexID execution : executionSlotSharingGroup.getExecutionVertexIds()) {
 				priorAllocations.add(priorAllocationIdRetriever.apply(execution));
-				preferredLocations.addAll(preferredLocationsRetriever.getPreferredLocations(execution, producersToIgnore));
+				if (inputLocationPreferencesEnabled) {
+					preferredLocations.addAll(preferredLocationsRetriever.getPreferredLocations(execution, producersToIgnore));
+				}
 			}
 			return SlotProfile.priorAllocation(
 				physicalSlotResourceProfile,
