@@ -47,12 +47,6 @@ public final class PipelinedRegionComputeUtil {
 	public static <V extends Vertex<?, ?, V, R>, R extends Result<?, ?, V, R>> Set<Set<V>> computePipelinedRegions(
 			final BaseTopology<?, ?, V, R> topology) {
 
-		// currently we let a job with co-location constraints fail as one region
-		// putting co-located vertices in the same region with each other can be a future improvement
-		if (topology.containsCoLocationConstraints()) {
-			return Collections.singleton(buildOneRegionForAllVertices(topology));
-		}
-
 		final Map<V, Set<V>> vertexToRegion = buildRawRegions(topology);
 
 		return mergeRegionsOnCycles(vertexToRegion);
