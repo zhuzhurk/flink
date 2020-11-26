@@ -24,12 +24,12 @@ public class ExecutionEdge {
 
 	private final ExecutionVertex target;
 
-	private final int inputNum;
+	private final int consumerIndex;
 
-	public ExecutionEdge(IntermediateResultPartition source, ExecutionVertex target, int inputNum) {
+	public ExecutionEdge(IntermediateResultPartition source, ExecutionVertex target, int consumerIndex) {
 		this.source = source;
 		this.target = target;
-		this.inputNum = inputNum;
+		this.consumerIndex = consumerIndex;
 	}
 
 	public IntermediateResultPartition getSource() {
@@ -40,8 +40,8 @@ public class ExecutionEdge {
 		return target;
 	}
 
-	public int getInputNum() {
-		return inputNum;
+	public int getConsumerIndex() {
+		return consumerIndex;
 	}
 
 	@Override
