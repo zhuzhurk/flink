@@ -363,4 +363,5 @@ public class ExecutionVertexDeploymentTest extends TestLogger {
 		final long end = System.currentTimeMillis();
 		System.out.println("Time elapsed on scheduling: " + (end - start));
 	}
+
 }
