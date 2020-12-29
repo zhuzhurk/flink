@@ -364,11 +364,11 @@ public class ExecutionVertex
 
         switch (pattern) {
             case POINTWISE:
-                edges = connectPointwise(sourcePartitions, inputNumber);
+                edges = connectPointwise(sourcePartitions, consumerNumber);
                 break;
 
             case ALL_TO_ALL:
-                edges = connectAllToAll(sourcePartitions, inputNumber);
+                edges = connectAllToAll(sourcePartitions, consumerNumber);
                 break;
 
             default:
@@ -386,26 +386,26 @@ public class ExecutionVertex
     }
 
     private ExecutionEdge[] connectAllToAll(
-            IntermediateResultPartition[] sourcePartitions, int inputNumber) {
+            IntermediateResultPartition[] sourcePartitions, int consumerNumber) {
         ExecutionEdge[] edges = new ExecutionEdge[sourcePartitions.length];
 
         for (int i = 0; i < sourcePartitions.length; i++) {
             IntermediateResultPartition irp = sourcePartitions[i];
-            edges[i] = new ExecutionEdge(irp, this, inputNumber);
+            edges[i] = new ExecutionEdge(irp, this, consumerNumber);
         }
 
         return edges;
     }
 
     private ExecutionEdge[] connectPointwise(
-            IntermediateResultPartition[] sourcePartitions, int inputNumber) {
+            IntermediateResultPartition[] sourcePartitions, int consumerNumber) {
         final int numSources = sourcePartitions.length;
         final int parallelism = getTotalNumberOfParallelSubtasks();
 
         // simple case same number of sources as targets
         if (numSources == parallelism) {
             return new ExecutionEdge[] {
-                new ExecutionEdge(sourcePartitions[subTaskIndex], this, inputNumber)
+                new ExecutionEdge(sourcePartitions[subTaskIndex], this, consumerNumber)
             };
         } else if (numSources < parallelism) {
 
@@ -424,7 +424,7 @@ public class ExecutionVertex
             }
 
             return new ExecutionEdge[] {
-                new ExecutionEdge(sourcePartitions[sourcePartition], this, inputNumber)
+                new ExecutionEdge(sourcePartitions[sourcePartition], this, consumerNumber)
             };
         } else {
             if (numSources % parallelism == 0) {
@@ -435,7 +435,8 @@ public class ExecutionVertex
                 ExecutionEdge[] edges = new ExecutionEdge[factor];
                 for (int i = 0; i < factor; i++) {
                     edges[i] =
-                            new ExecutionEdge(sourcePartitions[startIndex + i], this, inputNumber);
+                            new ExecutionEdge(
+                                    sourcePartitions[startIndex + i], this, consumerNumber);
                 }
                 return edges;
             } else {
@@ -449,7 +450,7 @@ public class ExecutionVertex
 
                 ExecutionEdge[] edges = new ExecutionEdge[end - start];
                 for (int i = 0; i < edges.length; i++) {
-                    edges[i] = new ExecutionEdge(sourcePartitions[start + i], this, inputNumber);
+                    edges[i] = new ExecutionEdge(sourcePartitions[start + i], this, consumerNumber);
                 }
 
                 return edges;

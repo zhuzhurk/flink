@@ -130,6 +130,33 @@ public class TaskDeploymentDescriptorFactory {
     }
 
     private ShuffleDescriptor[] getConsumedPartitionShuffleDescriptors(ExecutionEdge[] edges) {
+        if (edges.length == 0) {
+            return new ShuffleDescriptor[0];
+        }
+
+        // these edges correspond to the same job edge and connect to the same intermediate result
+        final IntermediateResult consumedIntermediateResult =
+                edges[0].getSource().getIntermediateResult();
+        final int consumerIndex = edges[0].getConsumerIndex();
+
+        if (consumedIntermediateResult.isShuffleDescriptorsCacheEnabledFor(consumerIndex)) {
+            final ShuffleDescriptor[] cachedShuffleDescriptors =
+                    consumedIntermediateResult.getCachedShuffleDescriptors(consumerIndex);
+            if (cachedShuffleDescriptors != null) {
+                return cachedShuffleDescriptors;
+            } else {
+                final ShuffleDescriptor[] shuffleDescriptors =
+                        buildConsumedPartitionShuffleDescriptors(edges);
+                consumedIntermediateResult.cacheShuffleDescriptors(
+                        consumerIndex, shuffleDescriptors);
+                return shuffleDescriptors;
+            }
+        } else {
+            return buildConsumedPartitionShuffleDescriptors(edges);
+        }
+    }
+
+    private ShuffleDescriptor[] buildConsumedPartitionShuffleDescriptors(ExecutionEdge[] edges) {
         ShuffleDescriptor[] shuffleDescriptors = new ShuffleDescriptor[edges.length];
         // Each edge is connected to a different result partition
         for (int i = 0; i < edges.length; i++) {
