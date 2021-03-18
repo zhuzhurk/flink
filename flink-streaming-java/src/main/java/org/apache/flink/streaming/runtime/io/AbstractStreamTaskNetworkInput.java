@@ -115,7 +115,10 @@ public abstract class AbstractStreamTaskNetworkInput<
                 if (bufferOrEvent.get().isBuffer()) {
                     processBuffer(bufferOrEvent.get());
                 } else {
-                    return processEvent(bufferOrEvent.get());
+                    if (bufferOrEvent.get().getEvent().getClass() != EndOfChannelStateEvent.class
+                            || checkpointedInputGate.allChannelsRecovered()) {
+                        return processEvent(bufferOrEvent.get());
+                    }
                 }
             } else {
                 if (checkpointedInputGate.isFinished()) {

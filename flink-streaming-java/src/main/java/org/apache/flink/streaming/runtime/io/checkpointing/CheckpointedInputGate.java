@@ -198,11 +198,12 @@ public class CheckpointedInputGate implements PullingAsyncDataInput<BufferOrEven
                     bufferOrEvent.getChannelInfo());
         } else if (bufferOrEvent.getEvent().getClass() == EndOfChannelStateEvent.class) {
             upstreamRecoveryTracker.handleEndOfRecovery(bufferOrEvent.getChannelInfo());
-            if (!upstreamRecoveryTracker.allChannelsRecovered()) {
-                return pollNext();
-            }
         }
         return Optional.of(bufferOrEvent);
+    }
+
+    public boolean allChannelsRecovered() {
+        return upstreamRecoveryTracker.allChannelsRecovered();
     }
 
     public CompletableFuture<Void> getAllBarriersReceivedFuture(long checkpointId) {
