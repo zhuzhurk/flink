@@ -20,10 +20,15 @@ package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
+import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 import org.apache.flink.runtime.jobgraph.IntermediateResultPartitionID;
+import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -55,6 +60,10 @@ public class IntermediateResult {
 
     private final ResultPartitionType resultType;
 
+    private final List<DistributionPattern> consumingPatterns;
+
+    private final Map<Integer, ShuffleDescriptor[]> shuffleDescriptorsCache;
+
     public IntermediateResult(
             IntermediateDataSetID id,
             ExecutionJobVertex producer,
@@ -80,6 +89,9 @@ public class IntermediateResult {
 
         // The runtime type for this produced result
         this.resultType = checkNotNull(resultType);
+
+        this.consumingPatterns = new ArrayList<>();
+        this.shuffleDescriptorsCache = new HashMap<>();
     }
 
     public void setPartition(int partitionNumber, IntermediateResultPartition partition) {
@@ -107,6 +119,18 @@ public class IntermediateResult {
 
     public IntermediateResultPartition[] getPartitions() {
         return partitions;
+    }
+
+    public ShuffleDescriptor[] getCachedShuffleDescriptors(int consumerIndex) {
+        return shuffleDescriptorsCache.get(consumerIndex);
+    }
+
+    public void cacheShuffleDescriptors(int consumerIndex, ShuffleDescriptor[] shuffleDescriptors) {
+        this.shuffleDescriptorsCache.put(consumerIndex, shuffleDescriptors);
+    }
+
+    public boolean isShuffleDescriptorsCacheEnabledFor(int consumerIndex) {
+        return consumingPatterns.get(consumerIndex) == DistributionPattern.ALL_TO_ALL;
     }
 
     /**
@@ -143,6 +167,10 @@ public class IntermediateResult {
         return resultType;
     }
 
+    public void registerConsumer(DistributionPattern distributionPattern) {
+        consumingPatterns.add(distributionPattern);
+    }
+
     public int getConnectionIndex() {
         return connectionIndex;
     }
@@ -152,6 +180,10 @@ public class IntermediateResult {
         for (IntermediateResultPartition partition : partitions) {
             partition.resetForNewExecution();
         }
+    }
+
+    void notifyPartitionStateChanged() {
+        shuffleDescriptorsCache.clear();
     }
 
     @VisibleForTesting

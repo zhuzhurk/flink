@@ -56,6 +56,8 @@ public class EdgeManagerBuildUtil {
             default:
                 throw new IllegalArgumentException("Unrecognized distribution pattern.");
         }
+
+        intermediateResult.registerConsumer(distributionPattern);
     }
 
     private static void connectAllToAll(
