@@ -52,6 +52,7 @@ import org.apache.flink.runtime.scheduler.strategy.SchedulingTopology;
 import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 import org.apache.flink.runtime.topology.Vertex;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.flink.util.IterableUtils;
 
 import org.slf4j.Logger;
 
