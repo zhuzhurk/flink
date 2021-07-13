@@ -20,6 +20,7 @@
 package org.apache.flink.runtime.scheduler;
 
 import org.apache.flink.api.common.JobStatus;
+import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.WebOptions;
 import org.apache.flink.core.testutils.ScheduledTask;
@@ -151,6 +152,8 @@ public class DefaultSchedulerTest extends TestLogger {
 
     private TestingJobMasterPartitionTracker partitionTracker;
 
+    private Time timeout;
+
     @Before
     public void setUp() throws Exception {
         executor = Executors.newSingleThreadExecutor();
@@ -170,6 +173,8 @@ public class DefaultSchedulerTest extends TestLogger {
 
         shuffleMaster = new TestingShuffleMaster();
         partitionTracker = new TestingJobMasterPartitionTracker();
+
+        timeout = Time.seconds(60);
     }
 
     @After
@@ -1366,6 +1371,33 @@ public class DefaultSchedulerTest extends TestLogger {
     }
 
     @Test
+    public void testProducedPartitionRegistrationTimeout() throws Exception {
+        ScheduledExecutorService scheduledExecutorService = null;
+        try {
+            scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+            final ComponentMainThreadExecutor mainThreadExecutor =
+                    ComponentMainThreadExecutorServiceAdapter.forSingleThreadExecutor(
+                            scheduledExecutorService);
+
+            shuffleMaster.setAutoCompleteRegistration(false);
+
+            final JobGraph jobGraph = nonParallelSourceSinkJobGraph();
+
+            timeout = Time.milliseconds(1);
+            createSchedulerAndStartScheduling(jobGraph, mainThreadExecutor);
+
+            Thread.sleep(100);
+
+            assertThat(testExecutionVertexOperations.getCanceledVertices(), hasSize(2));
+            assertThat(testExecutionVertexOperations.getFailedVertices(), hasSize(1));
+        } finally {
+            if (scheduledExecutorService != null) {
+                scheduledExecutorService.shutdown();
+            }
+        }
+    }
+
+    @Test
     public void testLateRegisteredPartitionsWillBeReleased() {
         shuffleMaster.setAutoCompleteRegistration(false);
 
@@ -1484,16 +1516,19 @@ public class DefaultSchedulerTest extends TestLogger {
     }
 
     private DefaultScheduler createSchedulerAndStartScheduling(final JobGraph jobGraph) {
+        return createSchedulerAndStartScheduling(
+                jobGraph, ComponentMainThreadExecutorServiceAdapter.forMainThread());
+    }
+
+    private DefaultScheduler createSchedulerAndStartScheduling(
+            final JobGraph jobGraph, final ComponentMainThreadExecutor mainThreadExecutor) {
         final SchedulingStrategyFactory schedulingStrategyFactory =
                 new PipelinedRegionSchedulingStrategy.Factory();
 
         try {
             final DefaultScheduler scheduler =
-                    createScheduler(
-                            jobGraph,
-                            ComponentMainThreadExecutorServiceAdapter.forMainThread(),
-                            schedulingStrategyFactory);
-            scheduler.startScheduling();
+                    createScheduler(jobGraph, mainThreadExecutor, schedulingStrategyFactory);
+            mainThreadExecutor.execute(scheduler::startScheduling);
             return scheduler;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -1547,6 +1582,7 @@ public class DefaultSchedulerTest extends TestLogger {
                 .setExecutionSlotAllocatorFactory(executionSlotAllocatorFactory)
                 .setShuffleMaster(shuffleMaster)
                 .setPartitionTracker(partitionTracker)
+                .setRpcTimeout(timeout)
                 .build();
     }
 

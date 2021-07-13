@@ -20,6 +20,7 @@
 package org.apache.flink.runtime.scheduler;
 
 import org.apache.flink.api.common.JobStatus;
+import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.checkpoint.CheckpointRecoveryFactory;
 import org.apache.flink.runtime.clusterframework.types.AllocationID;
@@ -100,6 +101,8 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 
     private final ShuffleMaster<?> shuffleMaster;
 
+    private final Time rpcTimeout;
+
     DefaultScheduler(
             final Logger log,
             final JobGraph jobGraph,
@@ -120,7 +123,8 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
             final ComponentMainThreadExecutor mainThreadExecutor,
             final JobStatusListener jobStatusListener,
             final ExecutionGraphFactory executionGraphFactory,
-            final ShuffleMaster<?> shuffleMaster)
+            final ShuffleMaster<?> shuffleMaster,
+            final Time rpcTimeout)
             throws Exception {
 
         super(
@@ -143,6 +147,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         this.userCodeLoader = checkNotNull(userCodeLoader);
         this.executionVertexOperations = checkNotNull(executionVertexOperations);
         this.shuffleMaster = checkNotNull(shuffleMaster);
+        this.rpcTimeout = checkNotNull(rpcTimeout);
 
         final FailoverStrategy failoverStrategy =
                 failoverStrategyFactory.create(
@@ -525,10 +530,18 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                 final boolean notifyPartitionDataAvailable =
                         deploymentHandle.getDeploymentOption().notifyPartitionDataAvailable();
 
-                return executionVertex
-                        .getCurrentExecutionAttempt()
-                        .registerProducedPartitions(
-                                logicalSlot.getTaskManagerLocation(), notifyPartitionDataAvailable);
+                final CompletableFuture<Void> partitionRegistrationFuture =
+                        executionVertex
+                                .getCurrentExecutionAttempt()
+                                .registerProducedPartitions(
+                                        logicalSlot.getTaskManagerLocation(),
+                                        notifyPartitionDataAvailable);
+
+                return FutureUtils.orTimeout(
+                        partitionRegistrationFuture,
+                        rpcTimeout.toMilliseconds(),
+                        TimeUnit.MILLISECONDS,
+                        getMainThreadExecutor());
             } else {
                 return FutureUtils.completedVoidFuture();
             }
